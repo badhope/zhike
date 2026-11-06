@@ -152,6 +152,22 @@ query
 | 新角色 | `core/personas.py` 加 `PersonaPreset` | 前端自动出现 |
 | 新搜索后端 | `core/websearch.py` 加 `_search_xxx` + `_BACKENDS` | 降级链自动纳入 |
 | 新指标 | `core/metrics.py` 加 Counter/Histogram | `/metrics` 自动暴露 |
+| 新离线回归检查 | `scripts/harness_all.py` 的 `CHECKS` 加一条 | CI 自动执行 |
+
+## 五之二、回归检查分两层
+
+**单测（pytest）**测函数与接口；**harness** 测那些"不像单测但同样会悄悄坏掉"的东西——
+角色设定是否自洽、版本号三处是否一致、表情包标签是否和磁盘对得上。两者互补：
+单测覆盖不到"15 张角色卡之间有没有互相矛盾"这类跨文件不变量。
+
+```bash
+python scripts/harness_all.py            # 离线检查，秒级，零成本，CI 跑这个
+python scripts/harness_all.py --list     # 看会跑什么
+python scripts/harness_all.py --live     # 追加需要模型/运行中服务的检查
+```
+
+纪律：**新增角色、改提示词、改版本号之后必须跑 harness**。`--live` 那部分花钱且慢，
+只在发版前手动跑。
 
 ## 六、设计不变量（改代码时不许破坏）
 

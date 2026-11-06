@@ -54,6 +54,60 @@ no separate clones or manual installs.
 
 ---
 
+## [1.5.1] — 2026-11-06
+
+Observability and offline regression hardening: the fixes here are all things that
+were silently broken rather than visibly broken.
+
+### Fixed
+
+- **500 responses lost their correlation ID.** `create_app()` registered
+  `@app.exception_handler(Exception)` twice; FastAPI keys handlers by exception class, so
+  the second registration silently replaced the first. Every unexpected error therefore
+  returned `{"detail": "服务内部错误，已记录日志"}` with no `request_id` and no
+  `X-Request-ID` header — exactly the information needed to line a user report up with the
+  server log. Now there is a single handler, and the middleware also stores the ID on
+  `request.state` because the contextvar is already reset by the time `ServerErrorMiddleware`
+  handles the exception. The body and header now agree.
+- **`logger.debug()` never reached the log ring.** `events_log.attach()` hardcoded
+  `setLevel(INFO)` on both `core` and `cs.events`, so the diagnostics worth having —
+  retrieval scores, rule-layer hits, model fallbacks — were dropped before reaching the
+  in-memory ring and `/api/admin/logs`. New `CS_AGENT_LOG_LEVEL` (default `INFO`) makes the
+  level configurable; the console's log page gained a `DEBUG` filter and per-row
+  `request_id` (click to copy).
+- **Protocol-end download could hang forever.** `napcat_fetch._download_part()` reset its
+  `idle` counter after printing "all mirrors struggling", so a download where every mirror
+  returned zero bytes never returned. `strict_download()` then blocked on `thread.join()`
+  forever: the console deploy wizard sat at "下载中…" with no error and no timeout, and the
+  only plausible user conclusion was a bad network. Consecutive zero-byte rounds are now
+  capped (`NAPCAT_DL_MAX_STALL_ROUNDS`, default 30) and the stall raises a message naming
+  the last real error. Thread exceptions are also propagated to the caller instead of
+  surfacing as a bare size mismatch.
+- **Character cards could contradict themselves.** Nothing checked that a catchphrase or a
+  reference utterance wasn't also listed as a taboo. Such a card makes the consistency guard
+  reject every normal reply, and the retry loop rewrites until it gives up. The offline
+  harness now extracts the terms actually banned by "不用「X」"-style taboos and fails on
+  overlap. Matching is deliberately narrow: a naive substring test flagged `tech`'s
+  "必须先看现象和日志" as banning its own catchphrase 日志.
+
+### Added
+
+- `scripts/harness_all.py` — single entry point for the offline regression checks
+  (version consistency, persona consistency, persona registry, guard behaviour, emote tags).
+  Five checks, a couple of seconds, no model calls, no tokens. `--list` shows what would run,
+  `--live` adds the checks that need a model or a running core.
+- CI now runs `scripts/harness_all.py` after the test suite, so persona drift and version
+  drift fail the build instead of being noticed later by hand.
+- `tests/test_version_tracing.py`, `tests/test_napcat_fetch.py` — the segmented downloader
+  (206-only, size and CRC validation, mirror rotation, stall handling) and the
+  version/tracing switches had 17%/39%/41% coverage; the three modules are now at 82%.
+
+### Changed
+
+- Test suite: 913 → 937 passing.
+
+---
+
 ## [Unreleased]
 
 ### Planned

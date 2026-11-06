@@ -206,6 +206,10 @@ def create_app() -> FastAPI:
         from core import request_id as _rid
 
         rid = _rid.set_request_id(request.headers.get("X-Request-ID"))
+        # contextvar 在异常穿透到最外层 ServerErrorMiddleware 时已被重置
+        # （用户中间件先退出），而 request.state 的生命周期覆盖整个请求，
+        # 两者都记一份：日志仍走 contextvar，500 响应头走 state。
+        request.state.request_id = rid
         started = _time.perf_counter()
         _metrics.IN_FLIGHT.inc()
         try:
@@ -224,16 +228,22 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(Exception)
     async def _unhandled_exc(request: Request, exc: Exception):
-        """未捕获异常统一出口：日志带 request_id，响应不回显堆栈（防信息泄露）。"""
+        """未捕获异常统一出口：日志带 request_id，响应不回显堆栈（防信息泄露）。
+
+        只能有一个 handler：FastAPI 的 exception_handlers 是以异常类为键的字典，
+        注册第二个会静默覆盖第一个（曾经如此，导致 500 响应既没有 request_id
+        也没有 X-Request-ID 头，现场排障时无法把报错和日志对上）。
+        """
         from core import request_id as _rid
 
-        rid = _rid.current_request_id()
+        # 优先取中间件写在 state 上的值：异常走到这里时 contextvar 已随中间件退出而失效
+        rid = getattr(request.state, "request_id", "") or _rid.current_request_id()
         ev.error("unhandled %s %s rid=%s: %s: %s", request.method, request.url.path,
                  rid, type(exc).__name__, str(exc)[:300])
         return JSONResponse(
             status_code=500,
             content={"detail": "服务内部错误", "request_id": rid},
-            headers={"X-Request-ID": rid},
+            headers={"X-Request-ID": rid} if rid else None,
         )
 
     @app.get("/metrics", include_in_schema=False)
@@ -331,16 +341,6 @@ def create_app() -> FastAPI:
         gateway: str
         status: str = "online"
         detail: dict = {}
-
-    @app.exception_handler(Exception)
-    async def _unhandled(request: Request, exc: Exception):
-        """兜底：任何未预料的异常都要落日志并返回结构化 JSON，而不是让客户端拿到 traceback。"""
-        ev.error("unhandled %s %s: %s: %s",
-                 request.method, request.url.path, type(exc).__name__, str(exc)[:300])
-        return JSONResponse(
-            status_code=500,
-            content={"detail": "服务内部错误，已记录日志"},
-        )
 
     @app.get("/healthz")
     def healthz():

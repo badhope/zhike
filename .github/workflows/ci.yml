@@ -32,6 +32,8 @@ jobs:
         run: mypy core executor gateway || true
       - name: Tests + coverage gate
         run: pytest -q --cov=core --cov-report=term --cov-fail-under=70
+      - name: Harness (offline: persona consistency, version, emote tags)
+        run: python scripts/harness_all.py
       - name: Dependency audit (production deps)
         run: pip-audit -r requirements.txt -s osv
 

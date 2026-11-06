@@ -8,6 +8,7 @@ import { t } from './lib/t'
 
 const LEVELS = [
   { key: '', label: '全部' },
+  { key: 'DEBUG', label: 'DEBUG' },
   { key: 'INFO', label: 'INFO' },
   { key: 'WARNING', label: 'WARNING' },
   { key: 'ERROR', label: 'ERROR' },
@@ -78,6 +79,15 @@ export default function LogsCenter() {
               <span className="text-muted shrink-0">{fmtTime(e.time)}</span>
               <span className={`shrink-0 w-[64px] font-semibold ${levelColor(e.level)}`}>{e.level}</span>
               <span className="text-muted shrink-0 hidden md:inline w-[80px] truncate" title={e.name}>{e.name}</span>
+              {e.request_id && (
+                <button
+                  className="text-muted shrink-0 hidden lg:inline w-[100px] truncate text-left underline-offset-2 hover:underline"
+                  title={t('复制关联 ID')}
+                  onClick={() => navigator.clipboard?.writeText(e.request_id)}
+                >
+                  {e.request_id}
+                </button>
+              )}
               <span className="break-all">{e.message}</span>
             </div>
           ))}

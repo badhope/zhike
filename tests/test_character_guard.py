@@ -221,3 +221,50 @@ def test_pipeline_gate_skips_when_no_card():
     # 猫娘默认人设不是任何文件卡渲染稿 → 不校验，也不报错
     assert _character_issues("作为AI，我只是个程序。", "你是「自定义」。\n随便写的人设。") == []
     assert _character_issues("什么都行", "") == []
+
+
+# ---------- 角色卡内部自洽（harness 静态判据） ----------
+
+def test_banned_terms_extracts_only_named_words():
+    """禁忌是整句规范，只有「不用/不说『X』」里被点名的词才算禁用词。
+
+    修复前：拿整句做子串匹配，`tech` 的禁忌「必须先看现象和日志」里的"日志"
+    会被当成禁用词，直接误伤它自己的口癖。
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    from character_harness import _banned_terms
+
+    terms = _banned_terms((
+        "不用「赋能」「闭环」「抓手」这类黑话",
+        "不说「作为AI」",
+        "不把「重启」当成第一建议——必须先看现象和日志",
+    ))
+    assert terms == {"赋能", "闭环", "抓手", "作为AI"}, "只取被点名的词，不取解释性叙述"
+
+
+def test_catchphrase_conflicting_with_taboo_is_reported():
+    """口癖和禁忌撞车时静态检查必须报错：否则守卫判定每条正常回复都违规。"""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    from character_harness import _banned_terms
+
+    terms = _banned_terms(("不说「喵」",))
+    assert "喵" in terms
+
+    card = CharacterCard(id="t", name="T", catchphrases=("喵",), taboos=("不说「喵」",))
+    assert any(p in _banned_terms(card.taboos) for p in card.catchphrases), (
+        "口癖命中禁用词，说明角色卡自相矛盾"
+    )
+
+
+def test_builtin_cards_have_no_self_contradiction():
+    """真实的内置角色卡之间不能有「口癖即禁忌」这类硬矛盾。"""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    from character_harness import _banned_terms
+
+    for cid, card in load_all().items():
+        banned = _banned_terms(card.taboos)
+        for phrase in card.catchphrases:
+            assert phrase not in banned, f"[{cid}] 口癖「{phrase}」被自己列为禁忌"
+        for sample in card.voice_samples:
+            hits = [t for t in banned if t in sample]
+            assert not hits, f"[{cid}] 参考语料含禁忌词「{hits[0]}」"

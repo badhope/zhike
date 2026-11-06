@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -65,6 +66,34 @@ def _jaccard(a: set[str], b: set[str]) -> float:
     if not a or not b:
         return 0.0
     return len(a & b) / len(a | b)
+
+
+# 「不用『赋能』『闭环』『抓手』这类黑话」——一句话里可能连点多个词，
+# 所以先定位「不用/不说/…」的起点，再把它后面连续的引号词全部取出。
+_BANNED_START = re.compile(r"(?:不用|不说|不使用|不要用|别用)")
+_QUOTED = re.compile(r"[「『\"“]([^」』\"”]+)[」』\"”]")
+
+
+def _banned_terms(taboos: tuple[str, ...]) -> set[str]:
+    """从禁忌清单里抽出「被明确禁用的词」，而不是拿整句叙述做子串匹配。
+
+    禁忌写的是给模型的规范（带解释、带理由），直接用整句匹配会把
+    「必须先看现象和日志」里的"日志"当成禁用词，误伤 tech 角色的口癖。
+    """
+    terms: set[str] = set()
+    for t in taboos:
+        for start in _BANNED_START.finditer(t or ""):
+            # 只看紧跟在「不用…」之后的连续引号词，遇到别的字就停
+            pos = start.end()
+            while True:
+                m = _QUOTED.match(t, pos)
+                if not m:
+                    break
+                term = m.group(1).strip()
+                if term:
+                    terms.add(term)
+                pos = m.end()
+    return terms
 
 
 def static_checks() -> tuple[list[str], list[str]]:
@@ -118,6 +147,27 @@ def static_checks() -> tuple[list[str], list[str]]:
             v = check_generic_assistant(sample)
             if v:
                 errors.append(f"[{cid}] 语料里自带客服腔：{sample[:30]}")
+
+    # 6. 设定内部不能自相矛盾：口癖/语料里出现的词不能同时被禁忌禁止
+    #    这类矛盾会让守卫陷入"说也对、不说也对"的死锁——模型每句话都在违规，
+    #    重试逻辑会把回复反复重写直到放弃。静态可判，必须在 CI 拦住。
+    #
+    #    禁忌是整句话（"不用「赋能」「闭环」这类黑话"），所以不能拿整句做子串匹配，
+    #    否则 "不把「重启」当成第一建议——必须先看现象和日志" 会因为包含"日志"
+    #    而误伤 tech 角色的口癖。只从「不用/不说/不使用」后面提取被点名的词。
+    for cid, card in cards.items():
+        banned = _banned_terms(card.taboos)
+        for phrase in card.catchphrases:
+            if phrase and phrase in banned:
+                errors.append(
+                    f"[{cid}] 口癖「{phrase}」同时被列为禁忌：守卫会判定每次正常回复都违规"
+                )
+        for sample in card.voice_samples:
+            hits = sorted(t for t in banned if t in sample)
+            if hits:
+                errors.append(
+                    f"[{cid}] 参考语料里出现禁忌词「{hits[0]}」：语料和禁区打架，模型无所适从"
+                )
 
     return errors, warnings
 

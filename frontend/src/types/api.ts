@@ -117,6 +117,7 @@ export interface LogEntry {
   level: string
   name: string
   message: string
+  request_id: string
 }
 
 export interface ChannelStatus {

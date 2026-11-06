@@ -73,12 +73,26 @@ def file_path() -> str:
     return str(getattr(_FILE_HANDLER, "baseFilename", "") or "")
 
 
+_VALID_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+
+
+def log_level() -> str:
+    """应用日志级别，来自 ``CS_AGENT_LOG_LEVEL``（默认 INFO，非法值回落 INFO）。
+
+    之前级别硬编码 INFO，导致全项目的 ``logger.debug(...)`` 永远到不了内存环——
+    排障时最想看的「检索为什么没命中」「规则层命中哪个意图」全都看不到。
+    """
+    raw = (os.environ.get("CS_AGENT_LOG_LEVEL") or "").strip().upper()
+    return raw if raw in _VALID_LEVELS else "INFO"
+
+
 def attach() -> None:
     """挂载内存环（+ 可选文件）handler。幂等：重复建 app 不会重复记录或泄漏。"""
     _attach_file_handler()
+    level = log_level()
     for name in ("cs.events", "core"):
         lg = logging.getLogger(name)
-        lg.setLevel(logging.INFO)
+        lg.setLevel(level)
         # 内存环与文件 handler 各自判断：之前用 continue 一次性跳过，
         # 导致「已有内存环」时文件 handler 永远挂不上（日志目录只有空文件）。
         if not any(isinstance(h, RingHandler) for h in lg.handlers):
