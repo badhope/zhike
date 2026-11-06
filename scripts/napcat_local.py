@@ -104,29 +104,32 @@ def _qq_exe_from_registry() -> str:
 
 
 def _version_warnings() -> list[str]:
-    """检查 QQ 版本是否与 NapCat 注入包匹配。
+    """检查 QQ 版本是否在 NapCat 的兼容表内。
 
-    为什么必须查：NapCat 的注入是按 QQ 内部结构打补丁的，``qqnt.json`` 里写死了
-    它适配的 QQ 版本。QQ 自动升级后版本号一变，注入就静默失败——
-    表现是 QQ.exe 起来了但内存只有 20MB、WebUI/OneBot 端口全不通，
-    ``run.log`` 里却只有 "Process resumed" 看似正常。这是本项目实际踩过的坑
-    （NapCat 适配 9.9.22-40990，机器上被升到 9.9.36-53644，QQ 群一整天没响应）。
-    这里不阻断启动（有人可能就想试试），但必须把话说在前面。
+    ## 之前这里错在哪
+
+    原实现拿 ``qqnt.json`` 的 ``version`` 字段（例如 ``9.9.22-40990``）当作
+    「NapCat 唯一适配的 QQ 版本」，本机版本号不同就报「版本不匹配，请降级」。
+    这个字段其实只是**注入包的基准版本**（NapCat 内部加载所用的 QQ 版本号），
+    Notpatible 范围靠的是 ``napcat.mjs`` 里的兼容表——那是一张按
+    ``"9.9.36-53644-x64": { send: "6E5AB20", ... }`` 逐 build 列出的映射表，
+    覆盖 40768 一直到当时最新的 53644。
+
+    后果很严重：本机是 9.9.36，包其实完全支持，却被判定为不兼容，
+    引导用户去下载一个腾讯已经下架的旧版 QQ——而且注入真正失败时
+    （比如桌面 QQ 占着同号），报的还是这条「版本不匹配」，
+    把「同号互斥」这个真实原因彻底盖住。
+
+    ## 现在的判据
+
+    1. 读 ``napcat.mjs``，找兼容表里有没有本机的 build 号；
+    2. 有就静默通过；
+    3. 找不到兼容表文件（老版本 NapCat 没这个文件）才退回 ``qqnt.json`` 比对，
+       并且措辞改成「建议确认」而不是「必须降级」。
     """
     warns: list[str] = []
-    pkg = NAPCAT_DIR / "qqnt.json"
-    try:
-        import json as _json
-
-        want = str(_json.loads(pkg.read_text(encoding="utf-8")).get("version") or "")
-    except (OSError, ValueError):
-        return warns
-    if not want:
-        return warns
-
     have = ""
     try:
-        # 目录名即版本：.../versions/9.9.36-53644/
         exe = _qq_exe_from_registry()
         if exe:
             vdir = Path(exe).parent / "versions"
@@ -134,12 +137,40 @@ def _version_warnings() -> list[str]:
             have = cands[0] if cands else ""
     except OSError:
         pass
+    if not have:
+        return warns
 
-    if have and have != want:
+    build = have.rsplit("-", 1)[-1] if "-" in have else ""
+
+    # 1) 以兼容表为准
+    engine = NAPCAT_DIR / "napcat.mjs"
+    try:
+        if engine.is_file():
+            text = engine.read_text(encoding="utf-8", errors="ignore")
+            if build and f'"{have}-x64"' in text:
+                return warns  # 精确命中，完全兼容
+            if build and f"{build}-x64" in text:
+                return warns  # build 命中（版本串写法略有差异）
+            # 兼容表存在但没有这个 build：这才是真的不支持
+            warns.append(
+                f"NapCat 兼容表里没有 QQ {have}。注入可能失败。"
+                "处理：升级 NapCat 到最新版，或把 QQ 换到兼容表里的版本。"
+            )
+            return warns
+    except OSError:
+        pass
+
+    # 2) 老包没有 napcat.mjs：退回基准版本比对，但只作提示
+    try:
+        import json as _json
+
+        base = str(_json.loads((NAPCAT_DIR / "qqnt.json").read_text(encoding="utf-8")).get("version") or "")
+    except (OSError, ValueError):
+        return warns
+    if base and have != base:
         warns.append(
-            f"QQ 版本不匹配：NapCat 适配 {want}，本机是 {have}。"
-            "注入很可能失败（QQ 进程起来但端口不通）。"
-            "处理：把 QQ 降级到该版本，或换用适配当前 QQ 的 NapCat 版本。"
+            f"无法确认兼容性：NapCat 基准版本 {base}，本机 QQ {have}。"
+            "若注入失败，先升级 NapCat（它的兼容表通常覆盖更新的 QQ）。"
         )
     return warns
 
