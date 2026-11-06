@@ -11,12 +11,25 @@ import { t } from './lib/t'
  * 用户的实际用法是「把二维码摆在旁边，拿手机扫」。弹窗会挡住控制台、
  * 误点遮罩就关闭、也不方便并排放着别的窗口。这一页设计成可以长期开着：
  *
- * - 二维码固定 10 秒自动换新，任何时刻看到的码都新鲜（NapCat 的码约 2 分钟过期）；
- * - 顶部有倒计时，用户知道还有多久换一次，不会以为是卡住了；
+ * - 二维码保持有效，只在临近过期时自动换新；
+ * - 顶部有倒计时，用户知道码还能用多久，不会以为是卡住了；
  * - 3 秒轮询登录状态，扫码成功后立刻切到成功态，不需要手动刷新；
  * - 失败时把 NapCat 的真实错误原样显示，不假装「正在加载」。
+ *
+ * ## 为什么不是每 10 秒换码（重要）
+ *
+ * 最初的需求是「十秒刷新一次，防止失效」。但必须区分两件事：
+ *
+ *   1. **轮询登录状态**：每 10 秒问一次，无副作用、成本极低 —— 保留。
+ *   2. **换码 RefreshQRcode**：会让服务端**作废旧码**。若按 10 秒做，
+ *      用户掏出手机 → 对准 → 确认通常要 3-8 秒，很容易正好扫到刚被作废的
+ *      那一张，表现是「扫了没反应」，且极难归因（看起来像网络问题）。
+ *
+ * 实测：不主动 refresh 时，服务端连续三次返回同一个码（有效期内复用），
+ * 真正的过期由 NapCat 按约 2 分钟判断。所以正确策略是「让码活着、快过期
+ * 再换」，而不是「频繁换新」。用户要的「防止失效」这样才真正满足。
  */
-const REFRESH_S = 10
+const REFRESH_S = 100 // 距过期约 100 秒时主动换新（NapCat 约 120 秒过期）
 const POLL_MS = 3000
 
 type QrResp = { configured?: boolean; qrcode_url?: string; error?: string }
@@ -51,7 +64,9 @@ export default function QQScanPage() {
   const [status, setStatus] = useState<LoginStatus | null>(null)
   const [seconds, setSeconds] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [retryIn, setRetryIn] = useState(0)
   const aliveRef = useRef(true)
+  const failRef = useRef(0)
 
   const loadQr = useCallback(async (force: boolean) => {
     try {
@@ -59,8 +74,12 @@ export default function QQScanPage() {
       if (!aliveRef.current) return
       setQr(r)
       setSeconds(0)
+      // 拿到了码就清零失败计数，避免下次故障时直接从长退避开始
+      if (r.qrcode_url) failRef.current = 0
     } catch (e) {
-      if (aliveRef.current) setQr({ error: (e as Error).message })
+      if (!aliveRef.current) return
+      failRef.current += 1
+      setQr({ error: (e as Error).message })
     } finally {
       if (aliveRef.current) setLoading(false)
     }
@@ -97,6 +116,38 @@ export default function QQScanPage() {
     void loadQr(true)
   }, [seconds, qr?.qrcode_url, status?.is_login, loadQr])
 
+  // 拿码失败时自动重试：退避 5s → 10s → 20s → 40s → 60s 封顶。
+  // 之前失败后只显示一行错误就不动了，用户必须手动点「刷新状态」——
+  // 典型场景是协议端刚启动、WebUI 还没 ready，等十几秒自然就好了，
+  // 不该让人盯着屏幕等。成功后 failRef 归零，恢复正常节奏。
+  useEffect(() => {
+    if (qr?.qrcode_url || status?.is_login) return
+    if (!qr?.error) return
+    const delay = Math.min(5 * 2 ** Math.max(0, failRef.current - 1), 60)
+    setRetryIn(delay)
+    let left = delay
+    const tick = setInterval(() => {
+      left -= 1
+      setRetryIn(left)
+      if (left <= 0) {
+        clearInterval(tick)
+        void loadQr(false)
+      }
+    }, 1000)
+    return () => clearInterval(tick)
+  }, [qr?.error, qr?.qrcode_url, status?.is_login, loadQr])
+
+  // 扫码成功：自动清空二维码状态并给一条明确反馈。
+  // 原来成功后只是把内容换成「已登录」，用户还得自己切页面；
+  // 这里补一个自动跳转计时，同时保留手动按钮。
+  useEffect(() => {
+    if (!status?.is_login) return
+    const t = setTimeout(() => {
+      if (aliveRef.current) window.location.assign('/dashboard')
+    }, 2500)
+    return () => clearTimeout(t)
+  }, [status?.is_login])
+
   const loggedIn = !!status?.is_login
   const remaining = Math.max(0, REFRESH_S - seconds)
 
@@ -104,7 +155,7 @@ export default function QQScanPage() {
     <div className="p-4 md:p-6 max-w-[720px] mx-auto w-full min-w-0 space-y-5 pb-24 md:pb-10">
       <PageHead
         title={t('QQ 扫码登录')}
-        sub={t('二维码每 10 秒自动换新；用手机 QQ 扫一次即可，登录成功后本页会自动更新')}
+        sub={t('二维码保持有效，临近过期才换新；用手机 QQ 扫一次即可，登录成功后本页会自动更新')}
         right={null}
       />
 
@@ -149,14 +200,21 @@ export default function QQScanPage() {
                 <RefreshCw size={13} className={remaining <= 3 ? 'animate-spin text-brand' : ''} />
                 <span>
                   {remaining > 0
-                    ? t('{{n}} 秒后自动换新码', { n: remaining })
+                    ? t('二维码有效 · {{n}} 秒后自动换新', { n: remaining })
                     : t('正在换新码…')}
                 </span>
               </div>
             )}
 
             {qr?.error && (
-              <div className="text-sm text-danger text-center max-w-[52ch] leading-relaxed">{qr.error}</div>
+              <div className="text-center max-w-[52ch] space-y-1.5">
+                <div className="text-sm text-danger leading-relaxed">{qr.error}</div>
+                {retryIn > 0 && (
+                  <div className="text-xs text-muted">
+                    {t('{{n}} 秒后自动重试（协议端刚启动时通常等十几秒即可）', { n: retryIn })}
+                  </div>
+                )}
+              </div>
             )}
 
             <div className="flex items-start gap-2 text-xs text-muted max-w-[46ch] leading-relaxed">

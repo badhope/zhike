@@ -1982,75 +1982,55 @@ def card_for_chat(chat_key: str) -> dict | None:
 
 
 # ============================================================
-# 提醒 / 待办（秘书核心能力）
+# 提醒 / 待办（已拆到 core/reminder_store.py）
 # ============================================================
+# 保留同名转发是为了让 40 个文件、103 处 `store.reminder_*` 调用零改动。
+# 新代码请直接 `from core import reminder_store`。
 
-def reminder_add(visitor_id: str, chat_key: str, text: str, due_at: str,
-                 channel_type: str = "webchat", group_id: str | None = None,
-                 channel_user_id: str | None = None, repeat_rule: str = "") -> dict:
-    with get_conn() as conn:
-        cur = conn.execute(
-            "INSERT INTO reminders (visitor_id, chat_key, channel_type, group_id, "
-            "channel_user_id, text, due_at, status, created_at, repeat_rule) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)",
-            (visitor_id, chat_key, channel_type, group_id, channel_user_id, text, due_at,
-             _now(), repeat_rule),
-        )
-        rid = cur.lastrowid
-    return reminder_get(int(rid)) or {}
+def reminder_add(*a, **kw):
+    from core import reminder_store
+    return reminder_store.reminder_add(*a, **kw)
 
 
-def reminder_get(rid: int) -> dict | None:
-    with get_conn() as conn:
-        conn.row_factory = sqlite3.Row
-        r = conn.execute("SELECT * FROM reminders WHERE id = ?", (rid,)).fetchone()
-    return dict(r) if r else None
+def reminder_get(*a, **kw):
+    from core import reminder_store
+    return reminder_store.reminder_get(*a, **kw)
 
 
-def reminder_list(visitor_id: str = "", status: str = "pending", limit: int = 50) -> list[dict]:
-    sql = "SELECT * FROM reminders WHERE 1=1"
-    args: list = []
-    if visitor_id:
-        sql += " AND visitor_id = ?"
-        args.append(visitor_id)
-    if status:
-        sql += " AND status = ?"
-        args.append(status)
-    sql += " ORDER BY due_at LIMIT ?"
-    args.append(limit)
-    with get_conn() as conn:
-        conn.row_factory = sqlite3.Row
-        return [dict(r) for r in conn.execute(sql, args).fetchall()]
+def reminder_list(*a, **kw):
+    from core import reminder_store
+    return reminder_store.reminder_list(*a, **kw)
 
 
-def reminder_due(now: str, limit: int = 20) -> list[dict]:
-    """取出到期且仍待发的提醒。
-
-    due_at 用 ISO 字符串落库，直接字符串比较会把不同时区偏移的时刻排错序：
-    `2026-10-25T09:00:00+08:00` 串面大于 `2026-10-25T01:30:00+00:00`，
-    实际前者（01:00Z）已经过期 30 分钟。统一交给 julianday 做真实时刻比较。
-    """
-    with get_conn() as conn:
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            "SELECT * FROM reminders WHERE status = 'pending' "
-            "AND julianday(due_at) <= julianday(?) "
-            "ORDER BY julianday(due_at) LIMIT ?", (now, limit)).fetchall()
-    return [dict(r) for r in rows]
+def reminder_due(*a, **kw):
+    from core import reminder_store
+    return reminder_store.reminder_due(*a, **kw)
 
 
-def reminder_claim(rid: int) -> bool:
-    """原子认领一条到期提醒：pending → sending。
+def reminder_claim(*a, **kw):
+    from core import reminder_store
+    return reminder_store.reminder_claim(*a, **kw)
 
-    多 worker / 双实例同时 tick 时，只有抢到的那一个会投递；
-    之前只 SELECT 不认领，同一提醒会被重复推送。
-    """
-    with get_conn() as conn:
-        cur = conn.execute(
-            "UPDATE reminders SET status = 'sending' WHERE id = ? AND status = 'pending'",
-            (rid,),
-        )
-    return cur.rowcount > 0
+
+def reminder_release(*a, **kw):
+    from core import reminder_store
+    return reminder_store.reminder_release(*a, **kw)
+
+
+def reminder_reschedule(*a, **kw):
+    from core import reminder_store
+    return reminder_store.reminder_reschedule(*a, **kw)
+
+
+def reminder_mark(*a, **kw):
+    from core import reminder_store
+    return reminder_store.reminder_mark(*a, **kw)
+
+
+def reminder_cancel(*a, **kw):
+    from core import reminder_store
+    return reminder_store.reminder_cancel(*a, **kw)
+
 
 
 def reminder_release(rid: int) -> None:

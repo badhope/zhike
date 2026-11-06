@@ -9,9 +9,11 @@
 
 ## 设计要点
 
-1. **只对回环开放**。向导能改管理员密码、填 API Key，等价于「这台机器的主人」。
-   Dify 用 `INIT_PASSWORD` 做这道门，zhike 沿用已有的本机回环判定
-   （与 `/api/bootstrap/local-token` 同一套规则），不引入新凭据。
+1. **双门禁：回环 + 管理员令牌**。向导能改管理员密码、填 API Key，等价于
+   「这台机器的主人」。只用回环判定是不够的——浏览器里任何一个网页都能向
+   `127.0.0.1` 发请求（CSRF / DNS rebinding 的经典攻击面），本机其它用户
+   进程也能打这个端口。真实复现：不带任何令牌 POST `/api/setup/complete`
+   返回 200。所以写操作一律再要求 `X-Admin-Token`，与其它管理接口同一套鉴权。
 
 2. **一次性**。完成后在 `meta` 表写 `onboarded_at`，之后任何请求都返回
    `needs_onboarding=false`。**老实例自动豁免**：已有会话或已配模型 Key 的库，
@@ -230,5 +232,21 @@ async def probe_model(body: ProbeIn, request: Request) -> dict:
 
 
 def _require_local(request: Request) -> None:
+    """向导写操作的门禁：必须是本机来源 **且** 持有管理员令牌。
+
+    两道缺一不可：
+    - 回环：防止公网/局域网直接访问；
+    - 管理员令牌：防止本机浏览器里的第三方页面借用户身份发起请求
+      （CSRF / DNS rebinding），也防止同机其它用户进程。
+    """
     if not _is_local(request):
         raise HTTPException(403, "首次启动向导只允许在本机访问")
+    from core import security
+
+    token = security.admin_token()
+    if not token:
+        # 未配置管理员令牌时管理接口本身已经全禁用，向导也不该放行
+        raise HTTPException(503, "ADMIN_TOKEN 未配置：管理接口已禁用")
+    supplied = request.headers.get("x-admin-token") or ""
+    if not security.constant_time_equals(supplied, token):
+        raise HTTPException(401, "需要管理员令牌")

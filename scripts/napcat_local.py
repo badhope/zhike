@@ -194,11 +194,36 @@ def _launch_direct(uin: str, log_fh) -> subprocess.Popen:
     args = [str(exe), qq, str(hook)]
     if uin:
         args.append(uin)
+
+    # ---- 这四个环境变量是注入成功的必要条件 ----
+    # 官方 launcher.bat 在调用 NapCatWinBootMain.exe 之前会设置它们，本脚本早期
+    # 版本"直连 exe 绕开 .bat 的 pause"时漏掉了，结果是注入器起来了、QQ 进程也
+    # 拉起来了，但**内核根本没被 patch**：进程稳定在 19.9MB，日志只有一行
+    # `Process resumed`，6099/3001 全不通，数据目录零写入。
+    #
+    # 症状极具误导性——看起来像"NapCat 与 QQ 版本不兼容"（本项目曾据此得出
+    # 错误结论并去查 QQ 降级），实际是缺少 patch 包路径。
+    # 补上之后日志立刻出现 `config_current_version: 9.9.36-53644` 与
+    # `load from: ...\QQNT.dll`，说明内核正常加载。
+    env_extra = {
+        "NAPCAT_PATCH_PACKAGE": str(NAPCAT_DIR / "qqnt.json"),
+        "NAPCAT_LOAD_PATH": str(NAPCAT_DIR / "loadNapCat.js"),
+        "NAPCAT_INJECT_PATH": str(hook),
+        "NAPCAT_MAIN_PATH": str(NAPCAT_DIR / "napcat.mjs"),
+    }
+    missing = [k for k, v in env_extra.items() if not Path(v).exists()]
+    if missing:
+        raise FileNotFoundError(
+            "NapCat 安装不完整，缺少：" + ", ".join(missing) +
+            "。重新下载 NapCat.Shell.zip 解压到 " + str(NAPCAT_DIR)
+        )
+
     # 数据目录必须与桌面版 QQ 隔离。
     # QQ 内核通过注册表 HKLM\...\Tencent\QQNT Install 解析数据目录，默认落到桌面版
     # 共用的 Tencent Files。共用后内核卡在 initializing：不登录、不写日志、不开端口，
     # 二维码看着正常但扫了没反应（NapCat issue #2135，v4.18.42 起支持该变量）。
     env = dict(os.environ)
+    env.update(env_extra)
     env.setdefault("NAPCAT_QQ_DATA_DIR", str(NAPCAT_DATA_DIR))
     creationflags = 0x00000008 if os.name == "nt" else 0  # DETACHED_PROCESS
     return subprocess.Popen(args, cwd=str(NAPCAT_DIR), stdout=log_fh, stderr=log_fh,

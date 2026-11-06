@@ -100,15 +100,46 @@ def start_core() -> str:
     return "OK 核心已启动" if port_up(CORE_PORT) else "X 核心启动后未监听——看日志"
 
 
+# 网关重启退避：网关在 NapCat 未登录时会立刻退出（exit code 2）。
+# 固定 30 秒重试看起来"温和"，但实测一晚上能堆出 24373 条 ConnectionRefusedError
+# 和 17MB 日志——因为每次重试都会把完整 traceback 追加一遍。真正的成本不是 CPU，
+# 是日志被噪音淹没（出事时翻不到有用信息）和磁盘。
+#
+# 改为指数退避：10s → 20s → 40s → ... → 300s 封顶。
+# 网关能稳定存活（超过 GW_HEALTHY_S 秒）就把退避重置回 10s。
+GW_BACKOFF_START_S = 10
+GW_BACKOFF_MAX_S = 300
+GW_HEALTHY_S = 60
+
+
 def gateway_loop(cfg: dict) -> None:
-    """网关守护：NapCat 没就绪时网关会退出，这里循环拉起并记录原因。"""
+    """网关守护：NapCat 没就绪时网关会退出，这里带指数退避地拉起。"""
+    backoff_s = GW_BACKOFF_START_S
     while True:
         if procs.get("gateway") and procs["gateway"].poll() is None:
             time.sleep(5)
             continue
         kill_proc("gateway")
         env = dict(os.environ)
-        log_fh = open(LOGS / "gateway.log", "ab")
+        # 日志必须轮转：此前是无条件 open(..., "ab") 追加且句柄从不关闭——
+        # NapCat 未就绪时网关每 30 秒重启一次，每次把整段 traceback 追加进同一个
+        # 文件，实测涨到 17MB / 24373 条 ConnectionRefusedError，且每次循环泄漏
+        # 一个文件描述符。改为超过 8MB 就换新文件（保留 2 份历史），
+        # 并在 Popen 之后立刻关闭父进程侧的句柄（子进程已有自己的副本）。
+        log_path = LOGS / "gateway.log"
+        try:
+            if log_path.exists() and log_path.stat().st_size > 8 * 1024 * 1024:
+                for i in (2, 1):
+                    older = LOGS / f"gateway.log.{i}"
+                    newer = LOGS / f"gateway.log.{i - 1}" if i > 1 else log_path
+                    if newer.exists():
+                        older.unlink(missing_ok=True)
+                        newer.rename(older)
+                log_path = LOGS / "gateway.log"
+                log_path.touch()
+        except OSError:
+            pass  # 轮转失败不能挡住网关启动
+        log_fh = open(log_path, "ab")
         try:
             procs["gateway"] = subprocess.Popen(
                 [str(VENV / "python.exe"), str(ROOT / "gateway" / "bot.py")],
@@ -117,13 +148,32 @@ def gateway_loop(cfg: dict) -> None:
             log("launcher", "gateway spawned")
         except Exception as e:
             log("launcher", f"gateway spawn failed: {e}")
-        # 网关对 NapCat 未就绪会自己退出（code=2）；等 30s 再拉
-        for _ in range(30):
+        finally:
+            # 子进程已继承句柄，父进程这一份必须关掉，否则每轮泄漏一个 fd
+            try:
+                log_fh.close()
+            except OSError:
+                pass
+        # 观察这个网关能活多久：
+        # - 活过 GW_HEALTHY_S 秒 → 认为它已稳定，退避重置（下次故障从 10s 起）；
+        # - 很快就退出 → 说明 NapCat 还没就绪，按当前退避等待，然后翻倍。
+        lived = 0
+        while lived < GW_HEALTHY_S:
             p = procs.get("gateway")
             if p is None or p.poll() is not None:
                 break
             time.sleep(1)
-        time.sleep(5)
+            lived += 1
+
+        if lived >= GW_HEALTHY_S:
+            if backoff_s != GW_BACKOFF_START_S:
+                log("launcher", f"gateway stable {lived}s, backoff reset")
+            backoff_s = GW_BACKOFF_START_S
+            continue
+
+        log("launcher", f"gateway exited early, retry in {backoff_s}s")
+        time.sleep(backoff_s)
+        backoff_s = min(backoff_s * 2, GW_BACKOFF_MAX_S)
 
 
 def start_gateway_thread(cfg: dict) -> None:

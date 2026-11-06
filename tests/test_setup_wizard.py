@@ -15,6 +15,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+# 向导写操作需要管理令牌（见 core/api/setup.py 的双门禁说明）
+AUTH = {"X-Admin-Token": "test-admin-token"}
+
 
 @pytest.fixture()
 def wizard_app(monkeypatch, tmp_path):
@@ -47,12 +50,12 @@ def test_complete_is_idempotent(wizard_app):
     from fastapi.testclient import TestClient
 
     with TestClient(wizard_app) as c:
-        first = c.post("/api/setup/complete", json={"skipped": ["channel"]})
+        first = c.post("/api/setup/complete", json={"skipped": ["channel"]}, headers=AUTH)
         assert first.status_code == 200
         stamp = first.json()["completed_at"]
         assert stamp
 
-        second = c.post("/api/setup/complete", json={})
+        second = c.post("/api/setup/complete", json={}, headers=AUTH)
         assert second.status_code == 200
         assert second.json().get("already_done") is True
         assert second.json()["completed_at"] == stamp, "重复完成不应改写首次时间戳"
@@ -65,10 +68,10 @@ def test_step_progress_persists(wizard_app):
     from fastapi.testclient import TestClient
 
     with TestClient(wizard_app) as c:
-        assert c.post("/api/setup/step", json={"step": "model"}).status_code == 200
+        assert c.post("/api/setup/step", json={"step": "model"}, headers=AUTH).status_code == 200
         assert c.get("/api/setup/status").json()["step"] == "model"
 
-        bad = c.post("/api/setup/step", json={"step": "不存在"})
+        bad = c.post("/api/setup/step", json={"step": "不存在"}, headers=AUTH)
         assert bad.status_code == 400, "未知步骤必须拒绝，否则前端会卡在空白页"
 
 
@@ -91,8 +94,8 @@ def test_non_local_request_is_rejected(wizard_app, monkeypatch):
 
     with TestClient(wizard_app) as c:
         monkeypatch.setattr(setup_mod, "_is_local", lambda request: False)
-        assert c.post("/api/setup/complete", json={}).status_code == 403
-        assert c.post("/api/setup/step", json={"step": "model"}).status_code == 403
+        assert c.post("/api/setup/complete", json={}, headers=AUTH).status_code == 403
+        assert c.post("/api/setup/step", json={"step": "model"}, headers=AUTH).status_code == 403
 
 
 def test_probe_model_reports_failure_honestly(wizard_app, monkeypatch):
@@ -107,7 +110,8 @@ def test_probe_model_reports_failure_honestly(wizard_app, monkeypatch):
     monkeypatch.setattr(providers, "test_connection", fake_probe)
     with TestClient(wizard_app) as c:
         r = c.post("/api/setup/probe-model",
-                   json={"base_url": "https://api.example.com/v1", "api_key": "bad", "model": "m1"})
+                   json={"base_url": "https://api.example.com/v1", "api_key": "bad", "model": "m1"},
+                   headers=AUTH)
     assert r.status_code == 200
     body = r.json()
     assert body["ok"] is False
@@ -118,5 +122,37 @@ def test_probe_model_requires_base_url(wizard_app):
     from fastapi.testclient import TestClient
 
     with TestClient(wizard_app) as c:
-        r = c.post("/api/setup/probe-model", json={"base_url": "  ", "api_key": "k", "model": "m"})
+        r = c.post("/api/setup/probe-model", json={"base_url": "  ", "api_key": "k", "model": "m"},
+                   headers=AUTH)
     assert r.status_code == 400
+
+
+def test_write_endpoints_require_admin_token(wizard_app):
+    """向导写操作必须要求管理令牌，不能只靠回环判定。
+
+    真实漏洞：不带任何令牌 POST /api/setup/complete 返回 200。
+    回环判定挡不住浏览器里的第三方页面（CSRF / DNS rebinding），
+    而向导能改模型配置、探测内网地址，等价于机器主人权限。
+    """
+    from fastapi.testclient import TestClient
+
+    with TestClient(wizard_app) as c:
+        assert c.post("/api/setup/complete", json={"skipped": []}).status_code == 401
+        assert c.post("/api/setup/step", json={"step": "model"}).status_code == 401
+        assert c.post("/api/setup/probe-model",
+                      json={"base_url": "https://x.test/v1", "api_key": "k", "model": "m"}
+                      ).status_code == 401
+        assert c.post("/api/setup/discover-models",
+                      json={"base_url": "https://x.test/v1", "api_key": "k"}).status_code == 401
+        # 带正确令牌则放行（幂等完成）
+        assert c.post("/api/setup/complete", json={}, headers=AUTH).status_code == 200
+
+
+def test_status_stays_readable_without_token(wizard_app):
+    """只读状态必须保持开放：前端要靠它决定是否显示向导。"""
+    from fastapi.testclient import TestClient
+
+    with TestClient(wizard_app) as c:
+        r = c.get("/api/setup/status")
+    assert r.status_code == 200
+    assert "needs_onboarding" in r.json()
