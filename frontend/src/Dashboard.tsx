@@ -413,7 +413,11 @@ interface QQDeployStatus {
   note?: string
 }
 
-const QR_TTL_S = 110 // NapCat 二维码约 2 分钟过期，提前 10 秒主动换新
+// 二维码刷新周期（秒）。
+// 用户要求「二维码一直躺在外面、每 10 秒换一次，直到扫码成功」——NapCat 的码
+// 约 2 分钟过期，10 秒主动换新能确保任何时刻看到的码都是新鲜可扫的；
+// 代价只是每 10 秒一次本地请求，对 NapCat 毫无压力。
+const QR_TTL_S = 10
 
 function QQScanLogin({ onLoggedIn }: { onLoggedIn?: () => void }) {
   const [open, setOpen] = useState(false)

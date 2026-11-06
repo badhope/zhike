@@ -19,11 +19,26 @@ import re
 import sqlite3
 import threading
 
+from core import paths
+
 logger = logging.getLogger("cs.events")
 
 # 路径可由环境变量覆盖（容器里指向持久卷，避免重建镜像丢知识库）
-KB_PATH = pathlib.Path(os.environ.get("CS_AGENT_KB") or (pathlib.Path(__file__).parent / "data" / "kb.json"))
-RETRIEVAL_DB = pathlib.Path(os.environ.get("CS_AGENT_RETRIEVAL_DB") or (pathlib.Path(__file__).parent / "data" / "retrieval.db"))
+#
+# 默认值区分「打包 exe」与「源码运行」：
+# - 源码运行：沿用仓库内 core/data/，与既有布局和历史数据完全一致；
+# - 打包运行：知识库是可写数据（用户会增删条目、导入文档），必须放可写目录，
+#   内置种子从只读的 _MEIPASS 复制过来。
+# 之前一律用 writable_dir()/data，源码模式下会新造一个仓库根 data/ 目录，
+# 与 core/data/ 并存——用户会看到两份 kb.json，不知道该信哪个。
+if paths.IS_FROZEN:
+    _KB_DEFAULT = paths.writable_dir() / "data" / "kb.json"
+    _RETRIEVAL_DEFAULT = paths.writable_dir() / "data" / "retrieval.db"
+else:
+    _KB_DEFAULT = pathlib.Path(__file__).parent / "data" / "kb.json"
+    _RETRIEVAL_DEFAULT = pathlib.Path(__file__).parent / "data" / "retrieval.db"
+KB_PATH = pathlib.Path(os.environ.get("CS_AGENT_KB") or _KB_DEFAULT)
+RETRIEVAL_DB = pathlib.Path(os.environ.get("CS_AGENT_RETRIEVAL_DB") or _RETRIEVAL_DEFAULT)
 
 # 分词方案版本：索引结构或切词算法变化时递增，触发全量重建
 TOKENIZER_VERSION = 2
@@ -54,7 +69,9 @@ def seed_kb_if_missing(seed_path: pathlib.Path | None = None) -> bool:
     """持久化路径下首次启动无 kb.json 时，从镜像内置种子复制一份。返回是否发生复制。"""
     if KB_PATH.exists():
         return False
-    seed = seed_path or (pathlib.Path(__file__).parent / "data" / "kb.json")
+    # 种子在打包后位于只读的 _MEIPASS 里，用 paths.resource 定位；
+    # 源码模式解析到仓库内同一份文件，与旧行为一致。
+    seed = seed_path or paths.resource("core", "data", "kb.json")
     if not seed.exists() or seed.resolve() == KB_PATH.resolve():
         return False
     KB_PATH.parent.mkdir(parents=True, exist_ok=True)

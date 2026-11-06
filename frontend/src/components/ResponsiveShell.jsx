@@ -5,8 +5,7 @@ import {
 import {
   MessageCircle, Headset, Settings, Menu, X,
   LayoutDashboard, MessagesSquare, ScrollText, ShieldAlert, ListChecks,
-  Bot, BookOpen, Stamp, Moon, Sun, Search, Command, Bell, Images,
-} from 'lucide-react'
+  Bot, BookOpen, Stamp, Moon, Sun, Search, Command, Bell, Images, QrCode } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import Logo from './Logo'
@@ -40,6 +39,7 @@ export const NAV_GROUPS = [
     label: '审计',
     items: [
       { to: '/logs', label: '日志中心', icon: <ScrollText size={16} /> },
+      { to: '/qq-scan', label: 'QQ 扫码登录', icon: <QrCode size={16} /> },
     ],
   },
 ]

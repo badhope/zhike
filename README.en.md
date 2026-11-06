@@ -1,131 +1,139 @@
 # Zhike
 
-**Your own personal secretary — on QQ and the Web, running on your own machine.**
+**A self-hosted personal secretary for QQ and the Web — running on hardware you own.**
 
 [中文](README.md) · [Architecture](docs/ARCHITECTURE.md) · [Deploy](DEPLOY.md) · [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md)
 
-Zhike is a self-hosted assistant agent you actually own. It answers in QQ group chats and
-private messages, runs a web console for you to manage it, and executes real tools — reminders,
-calculations, web search, file operations, memory — behind an explicit permission and audit layer.
-No cloud account, no per-seat subscription. Your database is a single SQLite file on your disk.
+<p align="center">
+  <img src="docs/media/demo.gif" width="860" alt="Zhike in action: console, chat, tool execution, audit">
+</p>
 
 <p align="center">
-  <img src="docs/screenshots/dashboard.png" width="880" alt="Operations dashboard">
+  <a href="#quick-start"><b>Quick start</b></a> ·
+  <a href="#what-it-does">What it does</a> ·
+  <a href="#screenshots">Screenshots</a> ·
+  <a href="#cli">CLI</a> ·
+  <a href="#windows-exe">Windows exe</a> ·
+  <a href="#honest-limits">Honest limits</a>
 </p>
 
 ---
 
-## Why it is different
+## Quick start
 
-Most "AI assistant" projects are a chat box wrapped around an API key. Zhike is built like
-infrastructure instead:
+Three commands. Python 3.12+ only; no Node, no Docker, no config file to hand-edit.
 
-| | |
-|---|---|
-| **Real tool execution, not suggestions** | 42 registered tools. The model calls them; the loop executes them, checks budgets, and detects repeated actions. |
-| **Tiered action permissions** | Every mutating action carries L0/L1/L2 risk. Destructive operations require approval. Nothing silently escalates. |
-| **Hash-chained audit log** | Who asked, what ran, what changed — tamper-evident, queryable from the console. |
-| **Hybrid retrieval** | SQLite FTS5 BM25 fused with optional `sqlite-vec` vectors via RRF. Degrades to keyword search cleanly when the embedding model is absent. |
-| **Works without an LLM key** | Rule and retrieval engines stay functional. QQ replies keep working in explicit rule mode instead of going silent. |
-| **Multi-provider failover** | Parallel racing across endpoints with cooldown, plus content-level failover when a reply is empty or truncated. |
-| **QQ-first, not web-only** | NapCat / OneBot v11 gateway with group throttling, bot-to-bot loop guard, emote learning, voice in and out. |
+```bash
+pip install -e .
+zhike init
+zhike run
+```
 
-## What you get
+Open <http://127.0.0.1:8010>. `init` generates the admin and channel tokens for you and prints
+the admin token once; `run` starts the server and tells you if the port is taken.
 
-| Area | Included |
-|---|---|
-| **Channels** | QQ groups and private chat (OneBot v11), embedded web chat, operator desk with live WebSocket handoff |
-| **Agent** | Multi-step ReAct loop, native function calling with JSON fallback, per-run token and wall-clock budgets, cancellation |
-| **Knowledge** | Import from Markdown, text, PDF, DOCX, XLSX; trial-recall playground; export; per-entry CRUD |
-| **Memory** | Long-term preferences, session notes, opt-out respected and persisted |
-| **Reminders** | Natural Chinese time expressions (`十分钟后`, `每天八点`, `每月三十一号`) plus absolute ISO times, recurring rules, channel delivery |
-| **Voice** | Speech-to-text via faster-whisper, text-to-speech via edge-tts — both optional |
-| **Personas** | 15 presets across 6 categories, each backed by a structured character card (facts, narrative, voice samples, unknown-topic policy); replies pass a consistency guard |
-| **Console** | Dashboard, sessions, reminders, personas, annotations, agent runs, action audit, emotes, logs, settings |
-| **Operations** | Prometheus metrics, request IDs, `/healthz` and `/readyz`, Docker multi-stage image, non-root runtime |
-| **Integration** | MCP server exposing context-free tools to Claude Desktop, Cursor and other MCP clients |
+Prefer the console? A first-run wizard walks you through model setup, the optional QQ channel,
+and a self-check. It appears only on the machine hosting Zhike, and only once.
 
 ## Screenshots
 
 <table>
 <tr>
-<td width="50%"><img src="docs/screenshots/visitor-chat.png" alt="Web chat"><br><sub><b>Web chat</b> — visitor-facing assistant</sub></td>
-<td width="50%"><img src="docs/screenshots/sessions.png" alt="Sessions"><br><sub><b>Sessions</b> — every conversation, filterable</sub></td>
+<td width="50%"><img src="docs/screenshots/en-dashboard.png" alt="Dashboard"><br><sub><b>Dashboard</b> — traffic, escalations, tool ranking</sub></td>
+<td width="50%"><img src="docs/screenshots/visitor-chat.png" alt="Chat"><br><sub><b>Chat</b> — citations, latency, engine mode</sub></td>
 </tr>
 <tr>
-<td><img src="docs/screenshots/settings.png" alt="Model settings"><br><sub><b>Model center</b> — providers, keys, retrieval tuning</sub></td>
-<td><img src="docs/screenshots/reminders.png" alt="Reminders"><br><sub><b>Reminders</b> — one-off and recurring</sub></td>
+<td><img src="docs/screenshots/sessions.png" alt="Sessions"><br><sub><b>Sessions</b> — filter, search, replay</sub></td>
+<td><img src="docs/screenshots/operator.png" alt="Operator desk"><br><sub><b>Operator desk</b> — live human handoff</sub></td>
 </tr>
 <tr>
-<td><img src="docs/screenshots/persona.png" alt="Personas"><br><sub><b>Personas</b> — 15 presets, 6 categories</sub></td>
-<td><img src="docs/screenshots/runs.png" alt="Agent runs"><br><sub><b>Agent runs</b> — multi-step task history</sub></td>
+<td><img src="docs/screenshots/persona.png" alt="Personas"><br><sub><b>Personas</b> — 15 presets, structured character cards</sub></td>
+<td><img src="docs/screenshots/kb.png" alt="Knowledge"><br><sub><b>Knowledge</b> — import, edit, trial recall</sub></td>
 </tr>
 <tr>
-<td><img src="docs/screenshots/logs.png" alt="Logs"><br><sub><b>Logs</b> — live event stream</sub></td>
-<td><img src="docs/screenshots/operator.png" alt="Operator desk"><br><sub><b>Operator desk</b> — human handoff</sub></td>
-</tr>
-<tr>
-<td><img src="docs/screenshots/kb.png" alt="Knowledge base"><br><sub><b>Knowledge base</b> — import, edit, trial recall</sub></td>
-<td><img src="docs/screenshots/emotes.png" alt="Emote library"><br><sub><b>Emote library</b> — vision-tagged memes</sub></td>
-</tr>
-<tr>
-<td><img src="docs/screenshots/annotations.png" alt="Canned answers"><br><sub><b>Canned answers</b> — instant replies without the model</sub></td>
-<td><img src="docs/screenshots/en-dashboard.png" alt="English UI"><br><sub><b>English UI</b> — full language switch</sub></td>
-</tr>
-<tr>
-<td colspan="2" align="center"><img src="docs/screenshots/visitor-mobile.png" width="320" alt="Mobile"><br><sub><b>Mobile</b> — the same console, responsive</sub></td>
+<td><img src="docs/screenshots/reminders.png" alt="Reminders"><br><sub><b>Reminders</b> — natural-language scheduling</sub></td>
+<td><img src="docs/screenshots/logs.png" alt="Logs"><br><sub><b>Logs</b> — live events with request IDs</sub></td>
 </tr>
 </table>
 
-## Quick start
+---
 
-Requires **Python 3.12+** and **Node.js 20+**. Commands below are for Git Bash on Windows;
-on Linux/macOS replace `.venv/Scripts/python` with `.venv/bin/python`.
+## What it does
 
-```bash
-git clone https://gitcode.com/badhope/zhike.git
-cd zhike
-python -m venv .venv
-.venv/Scripts/python -m pip install -r requirements.txt
-cp .env.example .env
+Zhike is an agent harness, not a chat wrapper. The loop selects tools, executes them, checks
+budgets, and records every step.
 
-cd frontend && npm ci && npm run build && cd ..
+| | |
+|---|---|
+| **Executes, not advises** | 42 registered tools. The model picks; the loop runs, validates, and detects repeated actions. |
+| **Tiered permissions** | Every mutating action is L0/L1/L2. Destructive actions require explicit approval — nothing escalates silently. |
+| **Hash-chained audit** | Who asked, what ran, what changed. Tamper-evident and verifiable from the console. |
+| **Hybrid retrieval** | SQLite FTS5 BM25 fused with optional `sqlite-vec` vectors via RRF; degrades to keyword search when no embedding model is present. |
+| **Runs without an LLM key** | Rules and retrieval keep working. QQ replies continue in rule mode instead of going silent. |
+| **Multi-provider failover** | Parallel racing with cooldown, plus content-level failover when a reply is empty or truncated. |
+| **QQ-first** | NapCat / OneBot v11 gateway with group throttling, bot-to-bot loop guard, emote learning, voice in and out. |
 
-CS_AGENT_STATIC_DIR=frontend/dist \
-  .venv/Scripts/python -m uvicorn core.main:app --host 127.0.0.1 --port 8010
+| Area | Included |
+|---|---|
+| **Channels** | QQ groups and private chat (OneBot v11), embedded web chat, operator desk over WebSocket |
+| **Agent** | Multi-step ReAct, native function calling with JSON fallback, per-run token and wall-clock budgets, cancellation |
+| **Knowledge** | Markdown / text / PDF / DOCX / XLSX import, trial-recall playground, export, per-entry CRUD |
+| **Memory** | Long-term preferences and session notes; opt-out is respected and persisted |
+| **Reminders** | Chinese natural time (`十分钟后`, `每天八点`, `每月三十一号`) plus ISO timestamps and recurrence rules |
+| **Voice** | faster-whisper transcription and edge-tts synthesis, both optional |
+| **Personas** | 15 presets across 6 categories, each with a structured character card and a drift guard |
+| **Ops** | Prometheus metrics, request IDs, `/healthz` and `/readyz`, multi-stage Docker image, non-root |
+
+---
+
+## CLI
+
+```
+zhike init      # create .env, generate tokens, create the database
+zhike run       # start the server (--gateway also starts the QQ gateway)
+zhike doctor    # check deps, tokens, ports, database, frontend, service health
+zhike status    # show current config and live service state
+zhike version   # version and paths
 ```
 
-Open <http://127.0.0.1:8010>. Set `ADMIN_TOKEN` in `.env` before exposing the service.
-The QQ channel additionally needs `CHANNEL_TOKEN` and a running NapCat/OneBot gateway.
-
-**Without a model key** the assistant still answers from rules and the knowledge base —
-useful for validating the pipeline before you commit to a provider.
-
-### Connect QQ
-
-Run the doctor first — it tells you which path this machine should take:
+`zhike doctor` is the first thing to run when something looks wrong. It reports what is
+actually true — whether the port is taken, whether the service answering on it is this version,
+and whether a model key is configured — instead of making you guess from a blank page.
 
 ```bash
-python scripts/qq_doctor.py
+$ zhike doctor
+✓ .env exists
+✓ ADMIN_TOKEN set (64 chars)
+✓ Python dependencies present
+✓ database exists (0.8 MB)
+✓ frontend build present
+! no model API key — running in rule mode
+✓ port 8010 free
 ```
 
-Two paths, pick one:
+---
+
+## Windows exe
+
+A single-file executable built with PyInstaller; no Python required on the target machine.
 
 ```bash
-# A. Container (recommended): bundles its own QQ, so your host QQ version is irrelevant
-docker compose -f docs/napcat-compose.yaml up -d
-
-# B. Local injection: reuses your desktop QQ credentials (no QR scan), but requires a
-#    QQ version that matches NapCat's injection package
-python scripts/napcat_local.py start --qq <your-account>
+python scripts/build_exe.py          # build + smoke test
+dist-exe/zhike.exe                   # 60 MB, self-contained
 ```
 
-> Local injection is version-sensitive: after a QQ auto-update it fails **silently** — the
-> process is alive but no ports listen and the log only says `Process resumed`. To users it
-> looks like "the bot never answers in the group". If this keeps happening, switch to the
-> container path. Details: [docs/QQ-LOGIN.md](docs/QQ-LOGIN.md) · [docs/QQ-LOCAL.md](docs/QQ-LOCAL.md)
+Double-clicking the exe with no arguments initializes on first launch and starts the server.
+Writable data (database, logs, `.env`) goes to `zhike-data/` next to the exe, or
+`%LOCALAPPDATA%\Zhike` when that directory is read-only. Read-only assets (knowledge seed,
+character cards, console build) ship inside the binary.
 
-### Docker
+> PyInstaller is a deliberate choice for a single-file download, not the industry default —
+> most comparable projects ship Electron/Tauri shells or Docker only. The build script verifies
+> `/healthz`, `/readyz`, the console page, and a real tool call before declaring success.
+
+---
+
+## Docker
 
 ```bash
 docker build -t zhike .
@@ -134,52 +142,85 @@ docker run -d -p 8010:8010 \
   -v zhike-data:/app/.tmp zhike
 ```
 
-## Configuration
+---
 
-Configuration resolves in three layers: **code defaults → environment variables → database**.
-The console writes the database layer, so runtime tuning does not require a restart or a
-redeploy. See [`.env.example`](.env.example) for every supported key.
+## Connect QQ
 
-## Verifying it works
+QQ is optional; the web console works without it.
 
 ```bash
-.venv/Scripts/python -m pytest tests -q
-.venv/Scripts/python -m ruff check core executor gateway scripts tests
-cd frontend && npx tsc --noEmit && npm test && npm run build
+python scripts/qq_doctor.py     # tells you which path fits this machine
 ```
 
-`scripts/e2e_check.py` exercises a **live** instance end to end: retrieval, tools, guardrails,
-memory, rate limiting, operator handoff, config hot-reload, knowledge CRUD, and WebSocket push.
+```bash
+# A. Containerized (recommended) — host QQ version is irrelevant, scan a QR once
+docker compose -f docs/napcat-compose.yaml up -d
 
-> It writes sessions, messages and tickets, and deletes test data. **Run it against an isolated
-> instance**, never against production or a real QQ group.
+# B. Local injection — reuses desktop QQ credentials, no QR, but version-sensitive
+python scripts/napcat_local.py start --qq <your-account>
+```
 
-## Honest limitations
+The console also deploys and starts the protocol end from the UI (Settings → Channels → QQ).
+
+> Local injection breaks silently after a QQ auto-update: the process is alive, no port answers,
+> and the log only says `Process resumed`. If that repeats, switch to the container path.
+> See [docs/QQ-LOGIN.md](docs/QQ-LOGIN.md) and [docs/QQ-LOCAL.md](docs/QQ-LOCAL.md).
+
+---
+
+## Configuration
+
+Three layers resolve in order: **code defaults → environment → database**. The console writes
+the database layer, so tuning takes effect without a restart. Every supported key is documented
+in [`.env.example`](.env.example).
+
+---
+
+## Verify it works
+
+```bash
+pytest tests -q                                   # unit and integration suite
+ruff check core executor gateway scripts tests     # lint
+python scripts/harness_all.py                     # offline regression: personas, version, emotes
+cd frontend && npm test && npm run build          # frontend tests and build
+```
+
+`scripts/e2e_check.py` exercises a **running instance** end to end: retrieval, tools, guardrails,
+memory, rate limiting, human handoff, config hot-reload, knowledge CRUD, and WebSocket push.
+
+> It writes sessions, messages, and tickets, then removes its test data. Run it against an
+> isolated instance only — never against production or a real QQ group.
+
+---
+
+## Honest limits
 
 These are real boundaries, not disclaimers:
 
-- **External services are external.** LLM, web search, QQ delivery, vision, voice and business
-  tooling each depend on network, credentials and provider availability. The console reports
-  what is *configured*, which is not proof that it is *reachable* right now.
-- **Reminder time zones.** Natural-language parsing and delivery depend on the entry point and
-  server time zone. Verify behaviour in your target environment before relying on it.
-- **Budgets are checked around calls,** not enforced as a hard per-request cap.
-- **WeCom and official-account channels are adapter skeletons,** not production integrations.
-- **File operations require the separate executor** and an explicit policy; they are not
-  available by default.
+- **External services stay external.** Models, web search, QQ delivery, vision, voice, and business
+  tools all depend on network, credentials, and vendor availability. The console reports
+  "configured", which is not the same as "reachable right now".
+- **Reminder time zones.** Natural-language parsing and delivery depend on the entry point and the
+  server time zone. Verify in the target environment before relying on it.
+- **Budgets are checked around calls**, not enforced as a hard per-request ceiling.
+- **WeCom and WeChat Official Account are adapter skeletons**, not production-ready integrations.
+- **File operations require a separate executor** and an explicit policy; disabled by default.
 
-## Project governance
+---
 
-- [CHANGELOG.md](CHANGELOG.md) — every release, in Keep a Changelog format
-- [ROADMAP.md](ROADMAP.md) — what is planned, what is explicitly not planned
-- [docs/RELEASING.md](docs/RELEASING.md) — release runbook and branch policy
+## Project
+
+- [CHANGELOG.md](CHANGELOG.md) — per-release changes, Keep a Changelog format
+- [ROADMAP.md](ROADMAP.md) — what is planned, and what is explicitly not
+- [docs/RELEASING.md](docs/RELEASING.md) — release process and branch policy
+- [docs/research/COMPETITIVE-RESEARCH.md](docs/research/COMPETITIVE-RESEARCH.md) — how this compares to 12 comparable projects
 - [CONTRIBUTING.md](CONTRIBUTING.md) — development setup and commit conventions
-- [SECURITY.md](SECURITY.md) — how to report vulnerabilities privately
+- [SECURITY.md](SECURITY.md) — how to report issues privately
 
-`main` is the only long-lived branch. Version strings live in `VERSION`, `core/version.py` and
-`pyproject.toml`; `scripts/check_version.py` enforces that they agree.
+`main` is the only long-lived branch. The version string lives in `VERSION`, `core/version.py`,
+and `pyproject.toml`, kept in sync by `scripts/check_version.py`.
 
 ## License
 
-[MIT](LICENSE). NapCat is a separate unofficial protocol implementation — review its license
-and the platform's terms before commercial use.
+[MIT](LICENSE). NapCat is an independent, unofficial protocol implementation — check its license
+and platform rules before commercial use.

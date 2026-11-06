@@ -20,8 +20,25 @@ from collections.abc import Callable
 
 import httpx
 
-PROXY = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy") \
-    or "http://127.0.0.1:7897"
+
+def _proxy() -> str | None:
+    """代理地址，**只在显式配置时使用**。
+
+    此前默认写死 ``http://127.0.0.1:7897``（Clash 的常见端口）。后果是：
+    没开代理的机器每一块都 ConnectError（WinError 10061 连接被拒绝），
+    六路并发一起失败，下载直接卡死——而真正的原因「本机没跑代理」
+    完全看不出来，用户只会以为网坏了（本轮实测复现）。
+
+    正确的默认是**不用代理**：httpx 默认会读 HTTP(S)_PROXY 环境变量，
+    用户自己有代理时照常生效；显式设 NAPCAT_DL_PROXY 才强制走代理。
+    """
+    explicit = (os.environ.get("NAPCAT_DL_PROXY") or "").strip()
+    if explicit:
+        return explicit
+    # 空字符串 = 不使用代理（显式关闭，避免继承到不可用的环境变量）
+    return None
+
+
 BLOCK = 512 * 1024
 IO_CHUNK = 64 * 1024
 # 连续多少轮零字节就判定下载停滞（每轮含 2s 退避，默认约 1 分钟）
@@ -57,7 +74,7 @@ def _download_part(index: int, urls: list[str], start: int, end: int, f: str,
         url = urls[url_i % len(urls)]
         got = 0
         try:
-            with httpx.Client(proxy=PROXY, timeout=45, follow_redirects=True) as c:
+            with httpx.Client(proxy=_proxy(), timeout=45, follow_redirects=True) as c:
                 with c.stream("GET", url, headers={"Range": f"bytes={a}-{a + want - 1}"}) as r:
                     if r.status_code != 206:
                         raise RuntimeError(f"status {r.status_code}")

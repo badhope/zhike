@@ -689,6 +689,20 @@ const en: Record<string, string> = {
   '权限相关变更写审计链': 'Permission changes are written to the audit chain',
   '核心锁定（界面只读）': 'Core locked (console read-only)',
   '可在界面修改': 'Editable in the console',
+
+  // ---- 界面文本（i18n 补齐）----
+  '执行动作': 'Run action',
+  '需审批': 'Needs approval',
+  '— 选择动作 —': '— Choose an action —',
+  '设定事实': 'Canon facts',
+  '参考语气': 'Reference voice',
+  '不许做的事': 'Hard limits',
+  '资料没有的事': 'Not in the canon',
+  '页面出错了': 'Something went wrong',
+  '回到对话': 'Back to chat',
+  '页面不存在': 'Page not found',
+  '地址可能写错了，或者功能已经改名。': 'The address may be wrong, or the page was renamed.',
+
 }
 
 export default en

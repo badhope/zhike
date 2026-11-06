@@ -706,3 +706,25 @@ body {
   font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
   color: var(--muted); margin: 0 0 4px 10px;
 }
+
+/* ---- 首次启动向导 ---- */
+/* 独立定义而不是复用 .ac-input：向导是用户见到的第一个界面，
+   不能因为「标注回复页」改样式就把它带崩。 */
+.sw-input {
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--panel);
+  color: var(--ink);
+  font-family: var(--font);
+  transition: border-color .15s, box-shadow .15s;
+}
+.sw-input::placeholder { color: var(--muted); }
+.sw-input:hover { border-color: var(--line-2); }
+.sw-input:focus {
+  outline: none;
+  border-color: var(--brand-2);
+  box-shadow: 0 0 0 3px var(--brand-soft);
+}

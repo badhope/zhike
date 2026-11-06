@@ -7,9 +7,12 @@ import ResponsiveShell from './components/ResponsiveShell'
 import { FeedbackProvider } from './components/Feedback'
 import { Spinner } from './components/Spinner'
 import ErrorBoundary, { installGlobalErrorHandlers } from './components/ErrorBoundary'
+import SetupWizard from './components/SetupWizard'
 import './i18n'
 import './index.css'
 import './styles.css'
+import { t } from './lib/t'
+import { bootstrapAdminToken } from './lib/queries'
 
 // 路由级代码分割（React.lazy + Suspense）
 const VisitorChat = lazy(() => import('./VisitorChat'))
@@ -24,13 +27,14 @@ const BotPersona = lazy(() => import('./BotPersona'))
 const AnnotationCenter = lazy(() => import('./AnnotationCenter'))
 const Reminders = lazy(() => import('./Reminders'))
 const EmoteCenter = lazy(() => import('./EmoteCenter'))
+const QQScanPage = lazy(() => import('./QQScanPage'))
 
 function NotFound() {
   return (
     <div className="p-8">
-      <h2 className="text-lg font-semibold">页面不存在</h2>
-      <p className="text-sm text-muted mt-2">地址可能写错了，或者功能已经改名。</p>
-      <Link className="btn mt-4" to="/">回到对话</Link>
+      <h2 className="text-lg font-semibold">{t('页面不存在')}</h2>
+      <p className="text-sm text-muted mt-2">{t('地址可能写错了，或者功能已经改名。')}</p>
+      <Link className="btn mt-4" to="/">{t('回到对话')}</Link>
     </div>
   )
 }
@@ -40,6 +44,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <FeedbackProvider>
+          <SetupWizard />
           <ResponsiveShell>
             <Suspense fallback={<Spinner full />}>
               <ErrorBoundary>
@@ -54,6 +59,7 @@ export default function App() {
                 <Route path="/runs" element={<AgentRuns />} />
                 <Route path="/emotes" element={<EmoteCenter />} />
                 <Route path="/logs" element={<LogsCenter />} />
+                <Route path="/qq-scan" element={<QQScanPage />} />
                 <Route path="/operator" element={<OperatorDesk />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/settings/:tab" element={<Settings />} />
@@ -69,4 +75,11 @@ export default function App() {
 }
 
 installGlobalErrorHandlers()
-ReactDOM.createRoot(document.getElementById('root')).render(<App />)
+
+// 先尝试本机令牌引导，再挂载应用。
+// 顺序很重要：先渲染会让管理页在无令牌时发出一批 401 请求，
+// 然后永远停在 Loading（而不是显示 TokenGate）。这一步很快（一次本地请求），
+// 失败也继续渲染，不会白屏。
+bootstrapAdminToken().finally(() => {
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />)
+})

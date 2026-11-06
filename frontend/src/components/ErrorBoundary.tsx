@@ -1,4 +1,5 @@
 import React from 'react'
+import { t } from '../lib/t'
 
 /**
  * 路由级错误边界。
@@ -50,7 +51,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
     if (!error) return this.props.children
     return (
       <div className="p-8" role="alert" aria-live="assertive">
-        <h2 className="text-lg font-semibold">页面出错了</h2>
+        <h2 className="text-lg font-semibold">{t('页面出错了')}</h2>
         <p className="text-sm text-muted mt-2">
           当前页面渲染失败，其它功能不受影响。可以先重试；持续失败请把错误码发给管理员。
         </p>
@@ -59,8 +60,8 @@ export default class ErrorBoundary extends React.Component<Props, State> {
           {'\n\n错误码：'}{code}
         </pre>
         <div className="flex gap-2 mt-4">
-          <button className="btn" onClick={this.retry}>重试</button>
-          <button className="btn secondary" onClick={() => { window.location.href = '/' }}>回到对话</button>
+          <button className="btn" onClick={this.retry}>{t('重试')}</button>
+          <button className="btn secondary" onClick={() => { window.location.href = '/' }}>{t('回到对话')}</button>
         </div>
       </div>
     )

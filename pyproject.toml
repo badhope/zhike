@@ -1,10 +1,10 @@
 [project]
 name = "zhike"
-version = "1.5.1"
+version = "1.6.0"
 description = "Self-hosted personal assistant agent harness: QQ + Web, ReAct loop, RAG, reminders, tiered action permissions, audit."
 readme = "README.md"
 requires-python = ">=3.12"
-license = { text = "MIT" }
+license = "MIT"
 dependencies = [
   "fastapi~=0.116",
   "uvicorn[standard]~=0.30",
@@ -32,6 +32,18 @@ mcp = ["mcp>=1.0"]
 tracing = ["opentelemetry-sdk~=1.27", "opentelemetry-exporter-otlp~=1.27"]
 dev = ["pytest~=9.0", "pytest-cov~=7.0", "pytest-asyncio~=1.0", "ruff~=0.17",
        "pip-audit~=2.10", "mypy~=1.14", "types-pyyaml"]
+build = ["pyinstaller~=6.22"]
+
+[project.scripts]
+zhike = "core.cli:main"
+
+[tool.setuptools]
+# 只打包真正的 Python 包；frontend/deploy/logs 是资源与产物，不属于发行包。
+# 不写这段时 setuptools 的自动发现会因为 flat-layout 下有多个顶层目录而直接失败。
+packages = ["core", "core.api", "core.actions", "gateway", "gateway.adapters", "executor"]
+
+[tool.setuptools.package-data]
+core = ["data/*.json", "data/characters/*.json"]
 
 [tool.ruff]
 target-version = "py312"

@@ -245,6 +245,29 @@ def test_detect_tool_returns_none_for_chitchat():
     assert tools.detect_tool("今天心情不错") == (None, None)
 
 
+def test_detect_tool_routes_colloquial_calc():
+    """「帮我算 X」「帮我算下 X」「求 X」都要走 calc。
+
+    修复前只认「算一下/算算/计算」，这三种最口语的说法全部漏掉——
+    无 Key 的规则模式下，用户问一句最简单的加法会掉进「这个我真没接住」。
+    """
+    for q in ["帮我算 9876*5432", "帮我算下 1+1", "求 1+1", "你算一下 1+1", "帮我计算 1+1"]:
+        name, args = tools.detect_tool(q)
+        assert name == "calc", f"{q} 应路由到 calc，实际 {name}"
+        assert args["expression"].strip()
+
+
+def test_detect_tool_does_not_mistake_intervals_for_calc():
+    """含数字但不是算式的句子不能被当成 calc。
+
+    「预算 5000-8000 之间选哪个」曾被误判：正则里的「算」匹配到了「预算」的「算」。
+    """
+    for q in ["预算 5000-8000 之间选哪个", "这个月花了 2000 元", "1 到 10 的质数有哪些",
+              "我 25 岁，他 30 岁", "帮我算一下这个月的开销"]:
+        name, _ = tools.detect_tool(q)
+        assert name != "calc", f"{q} 不是算式，不该路由到 calc"
+
+
 # ------------------------------------------------------------
 # 调度器
 # ------------------------------------------------------------

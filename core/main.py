@@ -1425,11 +1425,14 @@ def create_app() -> FastAPI:
     from core.api import qq_deploy as qq_deploy_api
     from core.api import qq_login as qq_login_api
     from core.api import reminders as reminders_api
+    from core.api import setup as setup_api
 
     app.include_router(kb_api.router)
     app.include_router(qq_deploy_api.router)
     app.include_router(qq_login_api.router)
     app.include_router(reminders_api.router)
+    # 首次启动向导：只对回环开放，老实例自动豁免（见 core/api/setup.py）
+    app.include_router(setup_api.router)
 
     @app.get("/api/admin/overview", dependencies=[Depends(require_admin)])
     def admin_overview():

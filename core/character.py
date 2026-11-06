@@ -38,7 +38,11 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-CHARACTER_DIR = Path(__file__).resolve().parent / "data" / "characters"
+# 角色卡是只读的内置资源（用户不直接编辑这些 json），打包后随 exe 一起解包到
+# _MEIPASS。用 paths.resource 而不是 __file__，源码模式解析结果不变。
+from core import paths  # noqa: E402
+
+CHARACTER_DIR = paths.resource("core", "data", "characters")
 
 # 渲染顺序固定：先"你是谁"，再"你的世界"，最后"你怎么说话"。
 # 顺序有讲究——越靠前的越不容易被忽略。事实放前面，风格放后面。

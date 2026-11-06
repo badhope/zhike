@@ -613,3 +613,32 @@ export function useEmoteDelete() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['emotes'] }),
   })
 }
+
+/**
+ * 启动时主动获取管理员令牌。
+ *
+ * 为什么需要：`baseHeaders` 在 store 里没有令牌时不带管理头，管理页的第一个请求
+ * 会 401；而页面要等「某个请求失败」才渲染 TokenGate，此前的渲染路径会一直停在
+ * Loading（真实复现：英文界面切换后刷新，总览页永久显示 Loading overview…）。
+ *
+ * 本机回环下 `/api/bootstrap/local-token` 直接下发令牌，所以正常情况用户不需要
+ * 任何操作；公网部署拿不到时保持静默，由 TokenGate 的输入框兜底。
+ *
+ * 返回是否拿到了令牌。幂等：已有令牌时直接返回 true，不发请求。
+ */
+export async function bootstrapAdminToken(): Promise<boolean> {
+  const store = useAppStore.getState()
+  if (store.adminToken) return true
+  try {
+    const r = await fetch('/api/bootstrap/local-token')
+    if (!r.ok) return false
+    const d = (await r.json()) as { available?: boolean; token?: string }
+    if (d?.available && d.token) {
+      store.setAdminToken(d.token)
+      return true
+    }
+  } catch {
+    /* 取不到就走 TokenGate 手动输入 */
+  }
+  return false
+}

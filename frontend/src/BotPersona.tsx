@@ -87,7 +87,7 @@ function CardViewer({ preset, onClose }: { preset: { id: string; name: string };
         onClick={(e) => e.stopPropagation()}>
         <div className="dlg-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span>{preset.name} · 设定资料</span>
-          <button className="btn ghost sm" onClick={onClose}>关闭</button>
+          <button className="btn ghost sm" onClick={onClose}>{t('关闭')}</button>
         </div>
         {loading && <div className="bp-hint"><Loader2 size={13} className="animate-spin inline-block" /> 加载中…</div>}
         {err && <div className="bp-hint">{err}</div>}
@@ -96,7 +96,7 @@ function CardViewer({ preset, onClose }: { preset: { id: string; name: string };
             {card.tagline && <p className="dlg-msg" style={{ fontStyle: 'italic' }}>{card.tagline}</p>}
             {Object.keys(card.fields || {}).length > 0 && (
               <div>
-                <b style={{ fontSize: 12.5 }}>设定事实</b>
+                <b style={{ fontSize: 12.5 }}>{t('设定事实')}</b>
                 <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 12.5, lineHeight: 1.8, color: 'var(--ink-2)' }}>
                   {Object.entries(card.fields).map(([k, v]) => (
                     <li key={k}><b>{k}</b>：{String(v)}</li>
@@ -116,7 +116,7 @@ function CardViewer({ preset, onClose }: { preset: { id: string; name: string };
             })}
             {card.voice_samples?.length > 0 && (
               <div>
-                <b style={{ fontSize: 12.5 }}>参考语气</b>
+                <b style={{ fontSize: 12.5 }}>{t('参考语气')}</b>
                 <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 12.5, lineHeight: 1.8, color: 'var(--ink-2)' }}>
                   {card.voice_samples.map((s, i) => <li key={i}>{s}</li>)}
                 </ul>
@@ -124,7 +124,7 @@ function CardViewer({ preset, onClose }: { preset: { id: string; name: string };
             )}
             {card.taboos?.length > 0 && (
               <div>
-                <b style={{ fontSize: 12.5 }}>不许做的事</b>
+                <b style={{ fontSize: 12.5 }}>{t('不许做的事')}</b>
                 <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 12.5, lineHeight: 1.8, color: 'var(--ink-2)' }}>
                   {card.taboos.map((s, i) => <li key={i}>{s}</li>)}
                 </ul>
@@ -132,7 +132,7 @@ function CardViewer({ preset, onClose }: { preset: { id: string; name: string };
             )}
             {card.unknown_policy && (
               <div>
-                <b style={{ fontSize: 12.5 }}>资料没有的事</b>
+                <b style={{ fontSize: 12.5 }}>{t('资料没有的事')}</b>
                 <p className="dlg-msg" style={{ marginTop: 4 }}>{card.unknown_policy}</p>
               </div>
             )}

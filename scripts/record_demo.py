@@ -99,7 +99,12 @@ def main() -> int:
         caption(page, "点开即可回放完整对话，坐席无需切系统", 2200)
 
         # 4. 动作审计
-        goto(page, "/actions", "④ 动作审计：每个动作都有权限档位、参数与结果", 1600)
+        # 注意：/actions 现在重定向到 /runs，审计是页面内的第二个视图，
+        # 必须先点「动作审计」切换，否则「校验审计链」按钮根本不在 DOM 里
+        # （此前脚本直接点它，超时失败——这是脚本与 UI 脱节，不是功能缺失）。
+        goto(page, "/runs", "④ 动作审计：每个动作都有权限档位、参数与结果", 1600)
+        page.get_by_text("动作审计", exact=True).first.click()
+        page.wait_for_timeout(1200)
         page.get_by_text("校验审计链").click()
         page.wait_for_timeout(1600)
         caption(page, "SHA-256 哈希链一键校验，防篡改可举证", 2200)

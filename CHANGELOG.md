@@ -54,6 +54,58 @@ no separate clones or manual installs.
 
 ---
 
+## [1.6.0] — 2026-11-06
+
+Delivery layer: the project becomes installable, shippable, and self-explanatory on first run.
+
+### Added
+
+- **`zhike` CLI** (`core/cli.py`): `init`, `run`, `doctor`, `status`, `version`. `init` creates
+  `.env`, generates 32-byte admin/channel tokens and creates the database; `run` starts the
+  server and auto-initializes on first use; `doctor` reports what is actually true (deps, tokens,
+  ports, database, frontend build, live service health) instead of making users guess.
+  Registered as `[project.scripts] zhike` and installable via `pip install -e .`.
+- **Single-file Windows exe** (`packaging/`, `scripts/build_exe.py`): 60 MB, no Python needed on
+  the target machine. `build_exe.py` verifies `/healthz`, `/readyz`, the console page, and a real
+  tool call before declaring success.
+- **`core/paths.py`**: one place that resolves read-only assets (bundled in `_MEIPASS`) versus
+  writable data (`zhike-data/` next to the exe, or `%LOCALAPPDATA%\Zhike`). Previously every
+  module computed `Path(__file__).parent` independently, which cannot survive packaging.
+- **First-run setup wizard** (`core/api/setup.py` + `SetupWizard.jsx`): four steps (welcome,
+  model, optional QQ, self-check), resumable, skippable, local-only, auto-skipped for existing
+  installations.
+- **Standalone QR login page** (`/qq-scan`): a persistent page designed to be left open — the QR
+  refreshes every 10 seconds so the displayed code is always scannable, with a visible countdown
+  and 3-second login polling.
+- **Competitive research** (`docs/research/COMPETITIVE-RESEARCH.md`): 12 comparable projects with
+  source-level evidence, including which deployment model each uses and why.
+
+### Fixed
+
+- **Admin pages hung on "Loading" forever when no token was in storage.** `baseHeaders` omitted
+  the admin header, the resulting 401 was swallowed by the loading state, and `TokenGate` — which
+  only renders on an auth *error* — never appeared. The app now resolves the local token before
+  mounting.
+- **The protocol-end downloader hardcoded a proxy at `127.0.0.1:7897`.** On any machine without
+  that proxy running, all six parallel ranges failed with `ConnectError` and the download stalled
+  with no actionable message. Proxies are now opt-in via `NAPCAT_DL_PROXY`.
+- **`zhike init` could leave two `ADMIN_TOKEN` entries in `.env`** by appending instead of filling
+  the existing empty key in place.
+- **CLI crashed on Windows GBK consoles** at the first `✓` (`UnicodeEncodeError`), which made the
+  exe fail on its very first command. Output now degrades to ASCII when UTF-8 is unavailable.
+- **`zhike status`/`doctor` misreported healthy checks as failures** (`configured` was read as a
+  boolean `ok`).
+- **`report_demo.py` clicked an element that only exists in a non-default tab** of the runs page,
+  so demo recording failed. It now switches to the action-audit view first.
+
+### Changed
+
+- Test suite: 937 → 954 backend, 12 → 16 frontend.
+- README (both languages) rewritten around a demo GIF and three commands, with the screenshots
+  moved below the fold.
+
+---
+
 ## [1.5.1] — 2026-11-06
 
 Observability and offline regression hardening: the fixes here are all things that

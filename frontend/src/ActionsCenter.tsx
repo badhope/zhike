@@ -295,11 +295,11 @@ function ActionRunner({ actions, exec, onDone }: {
     <section className="bg-panel border border-line-2 rounded-xl p-4 space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
         <Play size={15} className="text-brand" />
-        <h3 className="font-semibold text-sm">执行动作</h3>
+        <h3 className="font-semibold text-sm">{t('执行动作')}</h3>
         {spec && (
           <>
             <span className={`badge ${spec.risk === 0 ? 'muted' : spec.risk === 1 ? 'info' : 'danger'}`}>{spec.risk_label}</span>
-            {spec.requires_approval && <span className="badge warn">需审批</span>}
+            {spec.requires_approval && <span className="badge warn">{t('需审批')}</span>}
             <span className="text-muted text-xs">{spec.summary}</span>
           </>
         )}
@@ -307,7 +307,7 @@ function ActionRunner({ actions, exec, onDone }: {
       <div className="flex items-center gap-2 flex-wrap">
         <select value={name} onChange={(e) => { setName(e.target.value); setParams({}) }}
           className="tb-search-input" style={{ padding: "6px 10px" }} aria-label="选择动作">
-          <option value="">— 选择动作 —</option>
+          <option value="">{t('— 选择动作 —')}</option>
           {actions.map((a) => (
             <option key={a.name} value={a.name}>{a.name} · {a.summary}</option>
           ))}

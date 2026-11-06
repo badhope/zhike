@@ -1457,15 +1457,25 @@ def detect_tool(query: str, tools: dict | None = None) -> tuple[str | None, dict
         norm = (q_num.replace("乘以", "*").replace("乘", "*").replace("除以", "/")
                 .replace("加", "+").replace("减", "-"))
         has_cn_op = bool(re.search(r"(乘|除以|加|减)", q))
-        # 有中文运算符时必须先看 norm：否则「等于多少」那条会把尾部裸数字先吃掉
+        # 「帮我算 1+1」「帮我算下 1+1」「求 1+1」是比「算一下」更口语的说法，
+        # 之前只收了「算一下/算算/计算」，这三种全部漏掉——无 Key 的规则模式下
+        # 用户问一句最简单的加法也会掉进「没接住」。
+        #
+        # 触发词必须是独立的词，不能是别的词里的一颗字：「预算 5000-8000 之间选哪个」
+        # 里的「算」属于「预算」，不是让我计算。所以要求「算/求」前面是句首或
+        # 非中文（空格/标点/客套词），否则整句跳过。
+        _calc_trigger = re.search(
+            r"(?:^|[^\u4e00-\u9fff])(?:帮我|给我|你)?\s*(?:算一下|算算|计算|算|求)(?:一下|下|出|算)?"
+            r"\s*[:：]?\s*([-+*/%().\d\s^×÷]+)", q)
         m = (
             (re.search(r"([\d\s+\-*/%().^]{3,})", norm) if has_cn_op else None)
-            or re.search(r"(?:算一下|算算|计算)\s*[:：]?\s*([-+*/%().\d\s^×÷]+)", q)
-            or re.search(r"([-+*/%().\d\s^×÷]+?)\s*(?:等于多少|等于几|=)", q)
+            or _calc_trigger
+            or re.search(r"([-+*/%().\d\s^×÷]+?)\s*(?:等于多少|等于几|是多少|=)", q)
         )
         expr = m.group(1).strip() if m else ""
         if not expr and re.fullmatch(r"[\d\s+\-*/%().^×÷]+", q) and re.search(r"[\d]", q):
             expr = q.strip()
+        # 算式里必须有运算符，且不能带中文标签（「5000-8000 之间选哪个」是区间不是算式）
         if expr and re.search(r"[-+*/%^×÷]", expr):
             return "calc", {"expression": expr}
 

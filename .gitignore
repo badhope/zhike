@@ -50,3 +50,14 @@ logs/
 
 # 本机部署产物（NapCat Shell、运行日志、凭据缓存）
 .local/
+
+# 构建产物（scripts/build_exe.py 生成，不入库）
+dist-exe/
+build/
+*.spec.bak
+
+# pip install -e . 产生的元数据
+*.egg-info/
+
+# 打包/冒烟测试的临时目录
+.tmp/
