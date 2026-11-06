@@ -629,8 +629,14 @@ export function useEmoteDelete() {
 export async function bootstrapAdminToken(): Promise<boolean> {
   const store = useAppStore.getState()
   if (store.adminToken) return true
+  // 必须有超时：这个 Promise 在 main.jsx 里用 .finally() 挂载 React 根节点，
+  // 一旦 fetch 永远不 settle（服务端半开连接、代理挂起、浏览器节流后台标签），
+  // .finally() 永不执行 → 整页白屏，连 TokenGate 都渲染不出来。
+  // 真实复现：dist 更新后页面停在空白，控制台无任何 JS 错误。
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 3000)
   try {
-    const r = await fetch('/api/bootstrap/local-token')
+    const r = await fetch('/api/bootstrap/local-token', { signal: ctrl.signal })
     if (!r.ok) return false
     const d = (await r.json()) as { available?: boolean; token?: string }
     if (d?.available && d.token) {
@@ -638,7 +644,9 @@ export async function bootstrapAdminToken(): Promise<boolean> {
       return true
     }
   } catch {
-    /* 取不到就走 TokenGate 手动输入 */
+    /* 超时/网络失败/JSON 解析失败：都走 TokenGate 手动输入 */
+  } finally {
+    clearTimeout(timer)
   }
   return false
 }

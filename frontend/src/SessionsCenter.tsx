@@ -14,11 +14,11 @@ import './pages2.css'
 import { t } from './lib/t'
 
 const FILTERS = [
-  { key: '', label: '全部' },
-  { key: 'ongoing', label: '进行中' },
-  { key: 'pending_agent', label: '待接管' },
-  { key: 'agent_handled', label: '已接管' },
-  { key: 'closed', label: '已关闭' },
+  { key: '', label: t('全部') },
+  { key: 'ongoing', label: t('进行中') },
+  { key: 'pending_agent', label: t('待接管') },
+  { key: 'agent_handled', label: t('已接管') },
+  { key: 'closed', label: t('已关闭') },
 ]
 
 const STATUS_LABELS = SESSION_STATUS

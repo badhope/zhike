@@ -15,6 +15,13 @@ import { interpolate, type Vars } from './interpolate'
 
 export function t(text: string, vars?: Vars): string {
   if (!text) return text
+  // 模块级常量里也会调用 t()（例如 ResponsiveShell 的 NAV_GROUPS）。
+  // 如果那个模块比 i18n 先求值，i18n.t 还不可用，直接调用会抛错，
+  // 整个模块图随之崩掉 —— 表现是整页白屏且控制台没有可用信息（真踩过）。
+  // 这里做一次能力检查：未就绪就原样返回中文，等页面渲染时 i18n 早已完成初始化。
+  if (!i18n || typeof i18n.t !== 'function') {
+    return interpolate(text, vars)
+  }
   const translated = i18n.t(text, vars) as string
   // 命中资源时 i18next 已完成插值；miss 时它会返回原文（含花括号），这里补一次。
   return translated === text ? interpolate(text, vars) : translated

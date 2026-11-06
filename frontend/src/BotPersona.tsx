@@ -89,7 +89,7 @@ function CardViewer({ preset, onClose }: { preset: { id: string; name: string };
           <span>{preset.name} · 设定资料</span>
           <button className="btn ghost sm" onClick={onClose}>{t('关闭')}</button>
         </div>
-        {loading && <div className="bp-hint"><Loader2 size={13} className="animate-spin inline-block" /> 加载中…</div>}
+        {loading && <div className="bp-hint"><Loader2 size={13} className="animate-spin inline-block" /> {t('加载中…')}</div>}
         {err && <div className="bp-hint">{err}</div>}
         {card && (
           <>

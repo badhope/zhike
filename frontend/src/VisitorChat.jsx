@@ -29,10 +29,10 @@ import { http, useWebSearchStatus } from './lib/queries'
 import './pages.css'
 import { t } from './lib/t'
 const SCENES = [
-  { icon: <Package size={16} />, bg: 'var(--brand-soft)', color: 'var(--brand)', title: '查订单物流', text: '我的订单 ORD12345678 什么时候发货？' },
-  { icon: <Undo2 size={16} />, bg: 'var(--ok-soft)', color: '#1a8f52', title: '申请退款', text: '我想申请退款，怎么操作？' },
-  { icon: <Bell size={16} />, bg: 'var(--warn-soft)', color: '#b5731b', title: '设个提醒', text: '10分钟后提醒我关火' },
-  { icon: <Brain size={16} />, bg: 'var(--operator-soft)', color: '#c2358f', title: '帮我记住', text: '记住我喜欢喝美式' },
+  { icon: <Package size={16} />, bg: 'var(--brand-soft)', color: 'var(--brand)', title: t('查订单物流'), text: t('我的订单 ORD12345678 什么时候发货？') },
+  { icon: <Undo2 size={16} />, bg: 'var(--ok-soft)', color: '#1a8f52', title: t('申请退款'), text: t('我想申请退款，怎么操作？') },
+  { icon: <Bell size={16} />, bg: 'var(--warn-soft)', color: '#b5731b', title: t('设个提醒'), text: t('10分钟后提醒我关火') },
+  { icon: <Brain size={16} />, bg: 'var(--operator-soft)', color: '#c2358f', title: t('帮我记住'), text: t('记住我喜欢喝美式') },
 ]
 
 function loadSessions() {
@@ -65,7 +65,7 @@ const MsgRow = memo(function MsgRow({ m, index, last, escalated, loading, onFeed
         {m.image && (
           <img
             src={m.image.startsWith('data:') ? m.image : 'data:image/png;base64,' + m.image}
-            alt="用户上传图"
+            alt={t('用户上传图')}
             className="user-img"
           />
         )}
@@ -667,7 +667,7 @@ export default function VisitorChat() {
           {!hasMessages && !loading && (
             <div className="welcome">
               <div className="welcome-logo">
-                <img src="/character.png" alt="知客" width={96} height={96}
+                <img src="/character.png" alt={t('知客')} width={96} height={96}
                      style={{ borderRadius: 22, display: 'block' }} />
               </div>
               <h2>{t('你好，我是知客，你的私人秘书')}</h2>

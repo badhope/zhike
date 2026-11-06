@@ -327,7 +327,7 @@ export function ProviderPanel({ cfg, setCfg, persist }: {
             <div>
               <div className="text-xs text-muted mb-1">{t('协议')}</div>
               <select value={form.protocol} onChange={(e) => patch({ protocol: e.target.value, model: '', models: [] })}>
-                {(meta?.protocols || [{ value: 'openai-compatible', label: 'OpenAI 兼容' }]).map((p) => (
+                {(meta?.protocols || [{ value: 'openai-compatible', label: t('OpenAI 兼容') }]).map((p) => (
                   <option key={p.value} value={p.value}>{p.label}</option>
                 ))}
               </select>
@@ -402,11 +402,11 @@ export function ProviderPanel({ cfg, setCfg, persist }: {
             <div className="mt-3 grid sm:grid-cols-3 gap-2">
               <div>
                 <div className="text-xs text-muted mb-1">{t('上下文窗口')}</div>
-                <input value={form.context_window} inputMode="numeric" onChange={(e) => patch({ context_window: e.target.value.replace(/\D/g, '') })} placeholder="0 = 未知" />
+                <input value={form.context_window} inputMode="numeric" onChange={(e) => patch({ context_window: e.target.value.replace(/\D/g, '') })} placeholder={t('0 = 未知')} />
               </div>
               <div>
                 <div className="text-xs text-muted mb-1">{t('单次输出上限')}</div>
-                <input value={form.max_output} inputMode="numeric" onChange={(e) => patch({ max_output: e.target.value.replace(/\D/g, '') })} placeholder="0 = 未知" />
+                <input value={form.max_output} inputMode="numeric" onChange={(e) => patch({ max_output: e.target.value.replace(/\D/g, '') })} placeholder={t('0 = 未知')} />
               </div>
               <label className="flex items-end gap-2 pb-2 text-xs text-muted">
                 <input type="checkbox" checked={form.tool_calling} onChange={(e) => patch({ tool_calling: e.target.checked })} />

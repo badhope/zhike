@@ -7,7 +7,7 @@ import './pages2.css'
 import { t } from './lib/t'
 
 const LEVELS = [
-  { key: '', label: '全部' },
+  { key: '', label: t('全部') },
   { key: 'DEBUG', label: 'DEBUG' },
   { key: 'INFO', label: 'INFO' },
   { key: 'WARNING', label: 'WARNING' },

@@ -35,8 +35,8 @@ export function Avatar({ kind = 'agent', size = 34 }) {
       color: '#F7F5F0',
       label: 'Agent',
     },
-    visitor: { icon: <UserRound size={size * 0.5} />, bg: 'var(--visitor-soft)', color: 'var(--brand)', label: '用户' },
-    operator: { icon: <CircleCheck size={size * 0.5} />, bg: 'var(--operator-soft)', color: '#c2358f', label: '管理员' },
+    visitor: { icon: <UserRound size={size * 0.5} />, bg: 'var(--visitor-soft)', color: 'var(--brand)', label: t('用户') },
+    operator: { icon: <CircleCheck size={size * 0.5} />, bg: 'var(--operator-soft)', color: '#c2358f', label: t('管理员') },
   }
   const m = map[kind] || map.agent
   return (
@@ -203,7 +203,7 @@ export function Composer({
         {webSearch && <span className="badge info" style={{ fontSize: 10 }}>{t('已开启')}</span>}
         {image && (
           <div className="composer-img">
-            <img src={image} alt="预览" />
+            <img src={image} alt={t('预览')} />
             {onRemoveImage && (
               <button title={t('移除图片')} onClick={onRemoveImage}>
                 <X size={11} />

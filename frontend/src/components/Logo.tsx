@@ -10,6 +10,7 @@
  * 避免小尺寸下糊成一团。
  */
 import { memo } from 'react'
+import { t } from '../lib/t'
 
 interface LogoProps {
   size?: number
@@ -37,7 +38,7 @@ export const Logo = memo(function Logo({ size = 32, onDark = false, withText = f
         viewBox="0 0 64 64"
         fill="none"
         role="img"
-        aria-label="知客 Zhike"
+        aria-label={t('知客 Zhike')}
         style={{ flexShrink: 0 }}
       >
         <defs>

@@ -18,10 +18,10 @@ import { t } from '../lib/t'
  */
 
 const STEPS = [
-  { key: 'welcome', icon: Sparkles, title: '欢迎使用知客', sub: '三分钟配好，然后就能用了' },
-  { key: 'model', icon: Cpu, title: '连接模型', sub: '不配也能用，只是回答会比较朴素' },
-  { key: 'channel', icon: MessageSquare, title: '接入 QQ', sub: '可选：不接 QQ，网页端照样可用' },
-  { key: 'selfcheck', icon: ShieldCheck, title: '自检', sub: '确认每一项都真的能用' },
+  { key: 'welcome', icon: Sparkles, title: t('欢迎使用知客'), sub: t('三分钟配好，然后就能用了') },
+  { key: 'model', icon: Cpu, title: t('连接模型'), sub: t('不配也能用，只是回答会比较朴素') },
+  { key: 'channel', icon: MessageSquare, title: t('接入 QQ'), sub: t('可选：不接 QQ，网页端照样可用') },
+  { key: 'selfcheck', icon: ShieldCheck, title: t('自检'), sub: t('确认每一项都真的能用') },
 ]
 
 function api(path, init) {

@@ -28,18 +28,18 @@ interface Reminder {
 }
 
 const PRESETS = [
-  { label: '10 分钟后', when: '10分钟后' },
-  { label: '1 小时后', when: '1小时后' },
-  { label: '明天 9 点', when: '明天9点' },
-  { label: '3 天后', when: '3天后' },
+  { label: t('10 分钟后'), when: '10分钟后' },
+  { label: t('1 小时后'), when: '1小时后' },
+  { label: t('明天 9 点'), when: '明天9点' },
+  { label: t('3 天后'), when: '3天后' },
 ]
 
 /** 周期提醒的快捷写法：直接把规则写进 when，后端 _parse_repeat 会识别 */
 const REPEAT_PRESETS = [
-  { label: '每天 8 点', when: '每天8点' },
-  { label: '每个工作日 9 点', when: '每个工作日9点' },
-  { label: '每周一 10 点', when: '每周一10点' },
-  { label: '每月 1 号 9 点', when: '每月1号9点' },
+  { label: t('每天 8 点'), when: '每天8点' },
+  { label: t('每个工作日 9 点'), when: '每个工作日9点' },
+  { label: t('每周一 10 点'), when: '每周一10点' },
+  { label: t('每月 1 号 9 点'), when: '每月1号9点' },
 ]
 
 const REPEAT_LABEL: Record<string, string> = {
