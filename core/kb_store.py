@@ -47,9 +47,11 @@ class KbStore:
                     except OSError:
                         time.sleep(0.05)
             else:
-                import fcntl
+                import fcntl  # type: ignore[import-not-found]
 
-                fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+                # fcntl 是 POSIX-only；mypy 在 Windows 平台上会报模块无此属性，
+                # 但这段代码只在 os.name != "nt" 时执行。
+                fcntl.flock(fh.fileno(), fcntl.LOCK_EX)  # type: ignore[attr-defined]
             yield
         finally:
             try:
@@ -61,7 +63,7 @@ class KbStore:
                 else:
                     import fcntl
 
-                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+                    fcntl.flock(fh.fileno(), fcntl.LOCK_UN)  # type: ignore[attr-defined]
             except OSError:
                 pass
             fh.close()
@@ -119,7 +121,8 @@ def parse_blocks(raw: str) -> list[tuple[str, str]]:
     lines = raw.split("\n")
     blocks: list[tuple[str, str]] = []
     if any(ln.lstrip().startswith(("## ", "### ")) for ln in lines):
-        title, body = None, []
+        title: str | None = None
+        body: list[str] = []
         for ln in lines:
             ls = ln.strip()
             if ls.startswith(("## ", "### ")):

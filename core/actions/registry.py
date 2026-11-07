@@ -15,7 +15,11 @@ from typing import Literal
 
 Risk = Literal[0, 1, 2]
 
-RISK_L0, RISK_L1, RISK_L2 = 0, 1, 2
+# 显式标注为 Risk（Literal[0,1,2]）：直接写 `= 0, 1, 2` 会被推断成 int，
+# 传给 ActionSpec(risk=...) 时 mypy 报 40 条 arg-type。
+RISK_L0: Risk = 0
+RISK_L1: Risk = 1
+RISK_L2: Risk = 2
 RISK_LABEL = {RISK_L0: "只读", RISK_L1: "可逆写", RISK_L2: "破坏性"}
 
 

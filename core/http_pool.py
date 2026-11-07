@@ -117,7 +117,7 @@ async def request_with_retry(
     )
 
     client = get_client("", timeout=timeout)
-    state = {"resp": None}
+    state: dict[str, httpx.Response | None] = {"resp": None}
 
     def _should_retry_result(resp: httpx.Response) -> bool:
         return resp.status_code in retry_on

@@ -25,7 +25,7 @@ def score_answer(text: str, query: str = "", channel: str = "") -> float:
         return -100.0
     s = 0.0
     for issue in quality.critique(t, query, channel=channel):
-        sev = issue.get("severity")
+        sev = str(issue.get("severity") or "")
         s -= {"high": 25.0, "mid": 4.0, "low": 1.0}.get(sev, 1.0)
     n = len(t)
     if n < _IDEAL_MIN:

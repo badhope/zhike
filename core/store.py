@@ -4,10 +4,8 @@ DB 路径每次连接时读环境变量（CS_AGENT_DB），测试无需重载模
 """
 import json
 import os
-import secrets as secrets_module
 import sqlite3
 import threading
-import uuid
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 
@@ -260,7 +258,9 @@ def _ensure_action_schema(conn: sqlite3.Connection) -> None:
 
 # 秘书向内置工具（第 2 批）：上下文 / 记忆 / 提醒 / 网页 / 文件 / 识图 / QQ。
 # 与业务工具不同，这些是"真能干活"的本地能力，默认全开。
-_EXTRA_TOOLS: list[dict] = [
+# 每项是 (tool_id, 显示名, 描述, args 示例) 四元组，由 _extra_tool_seeds() 解包成 dict。
+# 之前的注解写成 list[dict] 与实际结构不符，mypy 在这里报了 50 条 list-item 错误。
+_EXTRA_TOOLS: list[tuple[str, str, str, dict]] = [
     ("current_context", "读当前对话", "查看这次对话最近说了什么、当前在哪个群", {}),
     ("recall_memory", "回忆关于你的事", "读取长期记忆里保存的信息", {"key": "string"}),
     ("remember", "记住一件事", "把用户的偏好或事实写入长期记忆",
@@ -514,200 +514,70 @@ def schema_version() -> int:
         return migrations.current_version(conn)
 
 
-def create_session(session_id: str, visitor_id: str, secret: str = "") -> None:
-    with get_conn() as conn:
-        conn.execute(
-            "INSERT INTO sessions (id, visitor_id, secret, status, started_at) VALUES (?, ?, ?, 'ongoing', ?)",
-            (session_id, visitor_id, secret, _now()),
-        )
+# ============================================================
+# 会话与消息（已拆到 core/session_store.py）
+# ============================================================
+# 保留同名转发，让 40 个文件、103 处 `store.*` 调用零改动。
+# 新代码请直接 `from core import session_store`。
+
+def create_session(*a, **kw):
+    from core import session_store
+    return session_store.create_session(*a, **kw)
 
 
-def check_session_secret(session_id: str, secret: str) -> bool:
-    """校验访客会话归属：sid + secret 双因子。未设置 secret 的老会话/渠道会话一律拒绝 web 写操作。"""
-    if not secret:
-        return False
-    with get_conn() as conn:
-        row = conn.execute("SELECT secret FROM sessions WHERE id = ?", (session_id,)).fetchone()
-    if not row or not row["secret"]:
-        return False
-    import secrets as _secrets
-    # compare_digest 对含非 ASCII 的 str 会抛 TypeError（攻击者可用来把接口打成 500）。
-    # 统一编码成 bytes 再比，任何异常都按"不匹配"处理。
-    try:
-        return _secrets.compare_digest(str(row["secret"]).encode("utf-8"), str(secret).encode("utf-8"))
-    except (UnicodeError, TypeError):
-        return False
+def check_session_secret(*a, **kw):
+    from core import session_store
+    return session_store.check_session_secret(*a, **kw)
 
 
-def add_message(session_id: str, role: str, content: str, refs: list | None = None,
-                tool_used: str | None = None, thought: str = "") -> int:
-    with get_conn() as conn:
-        cur = conn.execute(
-            "INSERT INTO messages (session_id, role, content, refs, tool_used, thought, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (session_id, role, content, json.dumps(refs or []), tool_used,
-             (thought or None), _now()),
-        )
-        # SLA 首响计时（Chatwoot 对标）：首条 agent/operator 回复落库即记
-        if role in ("agent", "operator"):
-            row = conn.execute(
-                "SELECT started_at, first_response_at FROM sessions WHERE id = ?", (session_id,)
-            ).fetchone()
-            if row and row["first_response_at"] is None and row["started_at"]:
-                try:
-                    from datetime import datetime, timezone
-                    t0 = datetime.fromisoformat(row["started_at"])
-                    secs = int((datetime.now(timezone.utc) - t0).total_seconds())
-                except (ValueError, TypeError):
-                    secs = None
-                conn.execute(
-                    "UPDATE sessions SET first_response_at = ?, first_response_seconds = ? "
-                    "WHERE id = ? AND first_response_at IS NULL",
-                    (_now(), secs, session_id),
-                )
-        return cur.lastrowid or 0
+def add_message(*a, **kw):
+    from core import session_store
+    return session_store.add_message(*a, **kw)
 
 
-def get_messages(session_id: str, limit: int | None = None,
-                 include_deleted: bool = True) -> list[dict]:
-    """读取会话消息，按时间正序。
-
-    limit 给定时只取最近 N 条（倒序查再翻转），避免长会话全量加载：
-    实测 2000 条历史会让上下文构建耗时从 18ms 涨到 37ms。
-    include_deleted=False 用于模型上下文：删掉的话不能再被模型看到。
-    """
-    cond = "" if include_deleted else " AND deleted = 0"
-    with get_conn() as conn:
-        if limit and limit > 0:
-            rows = conn.execute(
-                "SELECT id, role, content, refs, tool_used, thought, deleted, created_at FROM ("
-                "  SELECT id, role, content, refs, tool_used, thought, deleted, created_at "
-                f"  FROM messages WHERE session_id = ?{cond} ORDER BY id DESC LIMIT ?"
-                ") ORDER BY id",
-                (session_id, limit),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT id, role, content, refs, tool_used, thought, deleted, created_at "
-                f"FROM messages WHERE session_id = ?{cond} ORDER BY id",
-                (session_id,),
-            ).fetchall()
-    return [
-        {
-            "id": r["id"],
-            "role": r["role"],
-            "content": r["content"],
-            "refs": json.loads(r["refs"] or "[]"),
-            "tool_used": r["tool_used"],
-            "thought": r["thought"] or "",
-            "deleted": bool(r["deleted"]),
-            "created_at": r["created_at"],
-        }
-        for r in rows
-    ]
+def get_messages(*a, **kw):
+    from core import session_store
+    return session_store.get_messages(*a, **kw)
 
 
-# ---------------- 访客身份（避免自报 visitor_id 读到他人记忆） ----------------
-
-def visitor_claim_or_verify(visitor_id: str, token: str) -> tuple[bool, str]:
-    """首次声明 visitor_id 的调用方获得令牌；已有记录则必须出示匹配令牌。
-
-    返回 (ok, reason)：ok=False 时 reason ∈ {"taken", "bad_token"}。
-    只存令牌的 SHA-256，泄库也无法反推。
-    """
-    import hashlib
-
-    vid = (visitor_id or "").strip()
-    if not vid:
-        return False, "bad_token"
-    digest = hashlib.sha256((token or "").encode("utf-8")).hexdigest()
-    with get_conn() as conn:
-        row = conn.execute("SELECT token_hash FROM visitors WHERE id = ?", (vid,)).fetchone()
-        if row is None:
-            conn.execute(
-                "INSERT INTO visitors (id, token_hash, created_at) VALUES (?, ?, ?)",
-                (vid, digest, _now()),
-            )
-            return True, "created"
-        stored = row["token_hash"] or ""
-    ok = bool(stored) and secrets_module.compare_digest(stored.encode(), digest.encode())
-    return (True, "verified") if ok else (False, "bad_token")
+def visitor_claim_or_verify(*a, **kw):
+    from core import session_store
+    return session_store.visitor_claim_or_verify(*a, **kw)
 
 
-def visitor_exists(visitor_id: str) -> bool:
-    with get_conn() as conn:
-        return conn.execute("SELECT 1 FROM visitors WHERE id = ?", (visitor_id,)).fetchone() is not None
+def visitor_exists(*a, **kw):
+    from core import session_store
+    return session_store.visitor_exists(*a, **kw)
 
 
-def delete_message(session_id: str, message_id: int) -> bool:
-    """软删除一条消息（只允许删本会话内的）。返回是否命中。"""
-    with get_conn() as conn:
-        cur = conn.execute(
-            "UPDATE messages SET deleted = 1 WHERE id = ? AND session_id = ? AND deleted = 0",
-            (message_id, session_id),
-        )
-        return cur.rowcount > 0
+def delete_message(*a, **kw):
+    from core import session_store
+    return session_store.delete_message(*a, **kw)
 
 
-def get_session(session_id: str) -> dict | None:
-    with get_conn() as conn:
-        row = conn.execute("SELECT * FROM sessions WHERE id = ?", (session_id,)).fetchone()
-    return dict(row) if row else None
+def get_session(*a, **kw):
+    from core import session_store
+    return session_store.get_session(*a, **kw)
 
 
-def mark_escalated(session_id: str, reason: str) -> None:
-    """标记升级。已关闭的会话不允许被"复活"成待接管。
-
-    之前无条件改成 pending_agent，导致关闭后访客再发一条消息就把已结束
-    的会话重新拉回队列（已复现），工单也会被重开。
-    """
-    with get_conn() as conn:
-        conn.execute(
-            "UPDATE sessions SET escalated = 1, status = 'pending_agent', escalate_reason = ? "
-            "WHERE id = ? AND status IN ('ongoing', 'agent_handled')",
-            (reason, session_id),
-        )
+def mark_escalated(*a, **kw):
+    from core import session_store
+    return session_store.mark_escalated(*a, **kw)
 
 
-def set_status(session_id: str, status: str, assignee: str | None = None) -> bool:
-    """更新会话状态。返回是否命中（False 表示会话不存在）。"""
-    with get_conn() as conn:
-        cur = conn.execute(
-            "UPDATE sessions SET status = ?, assignee = COALESCE(?, assignee) WHERE id = ?",
-            (status, assignee, session_id),
-        )
-    return cur.rowcount > 0
+def set_status(*a, **kw):
+    from core import session_store
+    return session_store.set_status(*a, **kw)
 
 
-def close_session(session_id: str) -> None:
-    now = _now()
-    with get_conn() as conn:
-        conn.execute(
-            "UPDATE sessions SET status = 'closed', ended_at = ? WHERE id = ?",
-            (now, session_id),
-        )
-        conn.execute(
-            "UPDATE tickets SET status = 'resolved', resolved_at = ?, "
-            "duration_s = CAST((julianday(? ) - julianday(created_at)) * 86400 AS INTEGER) "
-            "WHERE session_id = ? AND status = 'pending'",
-            (now, now, session_id),
-        )
+def close_session(*a, **kw):
+    from core import session_store
+    return session_store.close_session(*a, **kw)
 
 
-def create_ticket(session_id: str, priority: str = "normal") -> str:
-    with get_conn() as conn:
-        row = conn.execute(
-            "SELECT id FROM tickets WHERE session_id = ? AND status = 'pending'",
-            (session_id,),
-        ).fetchone()
-        if row:
-            return row["id"]
-        ticket_id = f"T-{uuid.uuid4().hex[:8]}"
-        conn.execute(
-            "INSERT INTO tickets (id, session_id, priority, status, created_at) VALUES (?, ?, ?, 'pending', ?)",
-            (ticket_id, session_id, priority, _now()),
-        )
-    return ticket_id
+def create_ticket(*a, **kw):
+    from core import session_store
+    return session_store.create_ticket(*a, **kw)
 
 
 def pending_queues() -> dict:
@@ -940,7 +810,8 @@ def _channel_of(visitor_id: str) -> str:
 def admin_sessions(limit: int = 50, offset: int = 0, status: str | None = None,
                    q: str | None = None) -> dict:
     """会话列表：按状态过滤 + 关键字搜索（访客 ID / 会话 ID / 任意消息内容）。"""
-    clauses, params = [], []
+    clauses: list[str] = []
+    params: list[object] = []
     if status:
         clauses.append("s.status = ?")
         params.append(status)
@@ -1056,8 +927,11 @@ def admin_stats() -> dict:
         "channels": [{"channel": k, "count": v} for k, v in sorted(channels.items())],
         "feedback": {"helpful": fb_map.get("helpful", 0), "not_helpful": fb_map.get("not_helpful", 0)},
         "funnel": {
+            # sqlite Row 的值类型是 object，显式转 int（缺省按 0）
             "messages": sum(
-                m["visitor"] + m["agent"] + m["operator"] for m in messages_by_hour
+                int(str(m["visitor"] or 0)) + int(str(m["agent"] or 0))
+                + int(str(m["operator"] or 0))
+                for m in messages_by_hour
             ),
             "kb_answered": kb24,
             "tool_calls": tool24,
@@ -1217,7 +1091,7 @@ def get_tool(tool_id: str) -> dict | None:
 
 
 def upsert_tool(tool_id: str, name: str, desc: str, args_json: dict,
-                enabled: bool = True, builtin: bool = False) -> dict:
+                enabled: bool = True, builtin: bool = False) -> dict | None:
     from core import tool_store
 
     return tool_store.upsert_tool(tool_id, name, desc, args_json, enabled, builtin)
@@ -1269,7 +1143,8 @@ def add_injection_rule(expr: str, action: str = "block", enabled: bool = True) -
 
 def update_injection_rule(rule_id: int, expr: str | None = None,
                           action: str | None = None, enabled: bool | None = None) -> dict | None:
-    sets, params = [], []
+    sets: list[str] = []
+    params: list[object] = []
     if expr is not None:
         sets.append("expr = ?")
         params.append(expr)
@@ -1411,7 +1286,8 @@ def action_log_update(log_id: str, **fields) -> None:
     import json as _json
 
     allowed = {"status", "result", "error", "approval_id", "executed_at", "duration_ms"}
-    sets, params = [], []
+    sets: list[str] = []
+    params: list[object] = []
     for k, v in fields.items():
         if k not in allowed:
             continue
@@ -1430,7 +1306,8 @@ def action_log_list(limit: int = 100, status: str | None = None, action: str | N
                     risk: int | None = None) -> list[dict]:
     import json as _json
 
-    where, params = [], []
+    where: list[str] = []
+    params: list[object] = []
     if status:
         where.append("status = ?")
         params.append(status)
@@ -1742,7 +1619,8 @@ def annotation_update(aid: int, question: str | None = None, answer: str | None 
                       enabled: bool | None = None) -> dict | None:
     from datetime import datetime, timezone
 
-    fields, vals = [], []
+    fields: list[str] = []
+    vals: list[object] = []
     if question is not None:
         fields.append("question = ?"); vals.append(question.strip())
     if answer is not None:
@@ -2030,39 +1908,6 @@ def reminder_mark(*a, **kw):
 def reminder_cancel(*a, **kw):
     from core import reminder_store
     return reminder_store.reminder_cancel(*a, **kw)
-
-
-
-def reminder_release(rid: int) -> None:
-    """投递失败/进程中断后把 sending 放回 pending，等待下次重试。"""
-    with get_conn() as conn:
-        conn.execute("UPDATE reminders SET status = 'pending' WHERE id = ? AND status = 'sending'", (rid,))
-
-
-def reminder_reschedule(rid: int, next_due: str) -> None:
-    """周期提醒触发后：重置为 pending 并把 due_at 推到下一次。"""
-    with get_conn() as conn:
-        conn.execute(
-            "UPDATE reminders SET status = 'pending', due_at = ?, sent_at = NULL, "
-            "attempts = 0, last_error = '' WHERE id = ?", (next_due, rid))
-
-
-def reminder_mark(rid: int, status: str, error: str = "") -> None:
-    with get_conn() as conn:
-        conn.execute(
-            "UPDATE reminders SET status = ?, sent_at = ?, attempts = attempts + 1, "
-            "last_error = ? WHERE id = ?",
-            (status, _now() if status == "sent" else None, error[:200], rid),
-        )
-
-
-def reminder_cancel(rid: int) -> bool:
-    with get_conn() as conn:
-        cur = conn.execute(
-            "UPDATE reminders SET status = 'cancelled' WHERE id = ? AND status = 'pending'", (rid,))
-    return cur.rowcount > 0
-
-
 def search_messages(q: str, limit: int = 50, visitor_id: str = "") -> list[dict]:
     """跨会话搜消息内容（控制台「对话搜索」用）。
 

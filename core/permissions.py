@@ -54,7 +54,7 @@ def describe(cfg: dict) -> dict:
         "locked": [
             {"id": key, "label": LOCKED_ITEMS.get(key, (key, ""))[0],
              "how": LOCKED_ITEMS.get(key, (key, ""))[1]}
-            for key in locked if key in LOCKED_ITEMS
+            for key in (locked or []) if key in LOCKED_ITEMS
         ],
         "open": [{"id": key, "label": label} for key, label in OPEN_ITEMS.items()],
     }

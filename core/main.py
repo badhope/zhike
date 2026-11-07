@@ -46,7 +46,8 @@ def _parse_kb_blocks(raw: str) -> list[tuple[str, str]]:
     lines = raw.split("\n")
     blocks: list[tuple[str, str]] = []
     if any(ln.lstrip().startswith(("## ", "### ")) for ln in lines):
-        title, body = None, []
+        title: str | None = None
+        body: list[str] = []
         for ln in lines:
             ls = ln.strip()
             if ls.startswith(("## ", "### ")):
@@ -1345,7 +1346,7 @@ def create_app() -> FastAPI:
     @app.post("/api/tools", dependencies=[Depends(require_admin)])
     def create_tool(body: ToolIn):
         _validate_tool_args(body.args_json)
-        builtin = 1 if body.id in ("query_order", "initiate_refund", "lookup_policy") else 0
+        builtin = body.id in ("query_order", "initiate_refund", "lookup_policy")
         try:
             t = store.upsert_tool(body.id, body.name, body.desc, body.args_json, body.enabled, builtin)
         except ValueError as e:
@@ -1500,7 +1501,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/admin/channels", dependencies=[Depends(require_admin)])
     def admin_channels():
-        channels = [{"channel": "webchat", "status": "builtin", "last_seen": None, "detail": {}}]
+        channels: list[dict] = [{"channel": "webchat", "status": "builtin", "last_seen": None, "detail": {}}]
         gateways = dict(app.state.gateway_channels)
         for name, info in sorted(gateways.items()):
             status = info.get("status", "offline")

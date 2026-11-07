@@ -115,7 +115,7 @@ class OutboxBridge:
     def __init__(self, bus: EventBus, poll_interval_s: float = 1.0):
         self._bus = bus
         self._interval = poll_interval_s
-        self._task = None
+        self._task: asyncio.Task | None = None
         self._running = False
 
     async def _run(self):

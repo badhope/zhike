@@ -529,6 +529,7 @@ async def _llm_answer(query: str, ctx: dict, cfg: dict, image_b64: str = "",
         final = None
     forced_answer = str((final or {}).get("answer") or "").strip()
     if forced_answer and not llm.is_promise_only(forced_answer):
+        assert final is not None  # forced_answer 非空即说明 final 有内容
         final["tool"] = None
         return _with_tools(await _make_llm_reply(final, forced, cfg))
     # 连「不许再拖」都只换来一句「我这就去查」：不能再把空话发给用户。

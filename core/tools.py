@@ -143,7 +143,10 @@ def tool_current_context(ctx: ToolContext, **_kw) -> dict:
     tail = list(ctx.history)[-8:]
     lines = []
     for m in tail:
-        role = {"visitor": "用户", "agent": "我", "operator": "真人"}.get(m.get("role"), str(m.get("role")))
+        if not isinstance(m, dict):
+            continue
+        role = {"visitor": "用户", "agent": "我", "operator": "真人"}.get(
+            str(m.get("role") or ""), str(m.get("role")))
         content = str(m.get("content") or "").replace("\n", " ")[:120]
         if content:
             lines.append(f"{role}：{content}")

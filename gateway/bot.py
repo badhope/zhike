@@ -246,7 +246,9 @@ _GROUP_NAMES: dict[str, str] = {}
 _AMBIENT_MAX_GROUPS = max(64, int(os.environ.get("GATEWAY_AMBIENT_MAX_GROUPS", "200")))
 
 
-def _ambient_push(group: str, line: str) -> None:
+# 存的是 dict（nick/text/has_img/ts），不是 str——之前两个函数的注解都写错了，
+# 调用方一直按 dict 传，_ambient_snapshot 也按 dict 读（ln.get）。只改注解不动逻辑。
+def _ambient_push(group: str, line: dict) -> None:
     buf = _AMBIENT.setdefault(group, collections.deque(maxlen=_AMBIENT_MAX))
     buf.append(line)
     # 群数量无上限时 dict 会随运行时间无限增长（每个群一条 deque）。
@@ -255,7 +257,7 @@ def _ambient_push(group: str, line: str) -> None:
         _AMBIENT.pop(next(iter(_AMBIENT)), None)
 
 
-def _ambient_snapshot(group: str) -> list[str]:
+def _ambient_snapshot(group: str) -> list[dict]:
     buf = _AMBIENT.get(group)
     if not buf:
         return []
@@ -455,7 +457,8 @@ def _register_action_endpoint() -> None:
     from fastapi import Request
     from fastapi.responses import JSONResponse
 
-    app = driver.server_app
+    # server_app 是 NoneBot Driver 的运行时属性，类型桩里没有
+    app = driver.server_app  # type: ignore[attr-defined]
 
     def _authorized(req: Request) -> bool:
         if not CHANNEL_TOKEN:
@@ -675,7 +678,12 @@ async def _bind_adapter():
     logger.info("adapter bound: %s", adapter.name)
 
 
-async def _post_ingest(payload: dict) -> str:
+async def _post_ingest(payload: dict) -> dict:
+    """调用核心 /v1/ingest，返回 reply 字典（含 text/citations 等）。
+
+    签名原先标成 -> str，但函数体 return 的是 resp.json()["reply"]（dict），
+    调用方也按 dict 用（`.get("text")`）。标注与实际不符，已修正。
+    """
     """调用核心 /v1/ingest，网络类错误重试一次（指数退避）。
 
     只重试连接/超时/5xx：4xx 是业务拒绝（例如限流、内容校验），重试没有意义。
@@ -743,7 +751,8 @@ async def handle(event: MessageEvent):
         "sender": msg.sender_id, "text": msg.text[:100],
     })
 
-    payload = {
+    # 值类型混装 str/None/list，显式标注为 object
+    payload: dict[str, object] = {
         "channel_type": msg.channel,
         "channel_user_id": msg.sender_id,
         "group_id": msg.chat_id if msg.is_group else None,
@@ -773,9 +782,9 @@ async def handle(event: MessageEvent):
         text, err = await asr.transcribe(raw) if raw else ("", "下载语音失败")
         if text:
             # 把 [语音] 占位换成真实内容；没有占位就是纯语音消息，直接当正文
-            base = (payload.get("text") or "").replace("[语音]", "").strip()
+            base = str(payload.get("text") or "").replace("[语音]", "").strip()
             payload["text"] = f"{base} {text}".strip()
-        elif not (payload.get("text") or "").strip():
+        elif not str(payload.get("text") or "").strip():
             payload["text"] = "[语音]" if not asr.available() else f"[语音，转写失败：{err}]"
 
     # 引用回复：把用户这条消息的 message_id 交给适配器，first 段带 [CQ:reply]。
@@ -896,8 +905,11 @@ async def _deliver(payload: dict, msg, quote_id: str | None, *, retry_left: int 
                 if not result.ok:
                     break
     _CMD_STATS["handled"] += 1
+    # result 只在 segments 非空时被赋值；split_reply 理论上不会返回空列表，
+    # 但直接 result.ok 在空列表时会抛 AttributeError（None.ok）。按实证收窄。
     await bus.publish(EV_REPLY_OUT, {
-        "channel": msg.channel, "chat_id": msg.chat_id, "ok": result.ok,
+        "channel": msg.channel, "chat_id": msg.chat_id,
+        "ok": bool(result.ok) if result is not None else False,
     })
 
 

@@ -273,7 +273,7 @@ def _chat_payload(protocol: str, model: str, messages: list[dict],
         contents = [{"role": "model" if m["role"] == "assistant" else "user",
                      "parts": [{"text": m["content"]}]}
                     for m in messages if m.get("role") != "system"]
-        body: dict = {"contents": contents,
+        body = {"contents": contents,
                       "generationConfig": {"maxOutputTokens": max_tokens,
                                            "temperature": temperature}}
         if system:

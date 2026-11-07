@@ -13,6 +13,7 @@ import logging
 import os
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -58,7 +59,8 @@ def _verify(body: bytes, ts: str | None, sig: str | None) -> None:
         raise HTTPException(401, "签名不匹配")
 
 
-CAPABILITIES = {
+# 能力名 → 实现函数；函数签名统一 (policy, **params)，返回 dict。
+CAPABILITIES: dict[str, Callable[..., dict]] = {
     "fs.stat": cap.fs_stat,
     "fs.list": cap.fs_list,
     "fs.read": cap.fs_read,

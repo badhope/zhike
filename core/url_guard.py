@@ -46,7 +46,7 @@ def resolve_public(host: str, port: int = 0) -> list[str]:
         raise UnsafeUrl(f"域名没有可用地址：{host}")
     out: list[str] = []
     for info in infos:
-        raw = info[4][0]
+        raw = str(info[4][0])
         try:
             ip = ipaddress.ip_address(raw)
         except ValueError as e:

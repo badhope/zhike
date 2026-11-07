@@ -84,7 +84,9 @@ def get_tool(tool_id: str) -> dict | None:
 
 
 def upsert_tool(tool_id: str, name: str, desc: str, args_json: dict,
-                enabled: bool = True, builtin: bool = False) -> dict:
+                enabled: bool = True, builtin: bool = False) -> dict | None:
+    """插入或更新一个工具，返回最新行；理论上不会为 None（刚写过），
+    但 `SELECT` 之后仍有 None 的可能，按真实类型标注而不是假装非空。"""
     if not isinstance(args_json, dict):
         raise ValueError("args_json 必须是对象（参数名 → 类型）")
     with get_conn() as conn:

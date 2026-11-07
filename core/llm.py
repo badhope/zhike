@@ -446,6 +446,8 @@ async def _post_chat(base: str, api_key: str, payload: dict) -> str | None:
         if resp.status_code in (400, 422) and idx < len(attempts) - 1:
             continue
         break
+    # attempts 至少一项，循环必执行一次，resp 必然已赋值；断言帮 mypy 收窄。
+    assert resp is not None
     resp.raise_for_status()
     data = resp.json()
     choice = (data.get("choices") or [{}])[0]

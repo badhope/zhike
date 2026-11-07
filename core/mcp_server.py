@@ -40,7 +40,8 @@ def _load_server_class():
     except ImportError:
         pass
     try:
-        from mcp.server.fastmcp import FastMCP  # mcp 1.x
+        # mcp 1.x 才有 FastMCP；2.x 没有，这里是有意的版本探测
+        from mcp.server.fastmcp import FastMCP  # type: ignore[attr-defined]  # mcp 1.x
         return FastMCP, "1"
     except ImportError:
         return None, ""

@@ -54,7 +54,9 @@ def apply(mapping: dict[str, str] | None = None) -> int:
         def loop_gai(self, host, port, *, family=0, type=0, proto=0, flags=0):
             return orig_loop_gai(self, mapping.get(_host_key(host), host), port, family=family, type=type, proto=proto, flags=flags)
 
-        _abe.BaseEventLoop.getaddrinfo = loop_gai
+        # 猴子补丁：替换 asyncio 内部方法做 DNS 覆盖。mypy 认为方法不可赋值，
+        # 但这是刻意的（且只在需要劫持 DNS 时才执行）。
+        _abe.BaseEventLoop.getaddrinfo = loop_gai  # type: ignore[method-assign]
     except Exception:  # aqg: top-level boundary
         pass
 

@@ -28,12 +28,9 @@ jobs:
         run: python scripts/check_version.py
       - name: Lint (syntax + bugbear + async blocking)
         run: ruff check core executor gateway scripts tests
-      # 新模块强制（它们是类型干净的，欠债就从这里进来）；
-      # 存量模块仍 advisory（126 个历史错误，一次修完风险大于收益）。
-      - name: Type check (new modules, blocking)
-        run: mypy core/api/reminders.py core/api/setup.py --follow-imports=skip
-      - name: Type check (legacy modules, advisory)
-        run: mypy core executor gateway || true
+      # 全仓强制：126 个历史错误已全部清零，不再需要 advisory 兜底。
+      - name: Type check (blocking)
+        run: mypy core executor gateway
       - name: Tests + coverage gate
         run: pytest -q --cov=core --cov-report=term --cov-fail-under=70
       - name: Harness (offline: persona consistency, version, emote tags)

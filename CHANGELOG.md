@@ -54,6 +54,50 @@ no separate clones or manual installs.
 
 ---
 
+## [1.7.0] — 2026-11-07
+
+Type safety done end to end, and the last persistence split.
+
+### Added
+
+- **`mypy` is now blocking across the whole codebase** — 126 pre-existing errors fixed to zero
+  across 88 files. Most were not cosmetic: annotations disagreed with what the code actually
+  does, which is exactly the class of bug that fails at runtime instead of at build time.
+- **`core/session_store.py`** — sessions, messages, visitor identity and ticket creation moved out
+  of `core/store.py` (194 lines). Same compatibility-shim pattern as `reminder_store`:
+  `store.*` keeps forwarding, so all 40 call sites are untouched.
+
+### Fixed
+
+- **Duplicate `reminder_*` definitions in `core/store.py`.** The earlier extraction left three
+  old implementations behind; they shadowed the forwarding layer, so behaviour happened to be
+  correct but the file contained two divergent copies of the same functions. Removed.
+- **`gateway/bot.py` could read `result.ok` when `result` was still `None`** — `split_reply()`
+  returning an empty list left the variable unassigned and the reply-out event then raised
+  `AttributeError`. Now guarded.
+- **`_post_ingest` was annotated `-> str` but returns and is consumed as a dict.** Corrected.
+- **`_ambient_push` / `_ambient_snapshot` were annotated as `str` but store dicts.** Corrected.
+- **`upsert_tool` claimed `-> dict` while it can return `None`.** Corrected in both the
+  implementation and the shim.
+- **`list_files` reused the `except ... as e` binding** after Python deletes it. Renamed.
+
+### Changed
+
+- `build.chunkSizeWarningLimit` raised to 600 with a comment explaining why: the 542 KB echarts
+  chunk is lazy — measured 0 echarts requests on the home page, and 8 charts rendered only after
+  navigating to `/dashboard`. A warning that fires on correct behaviour trains people to ignore
+  warnings.
+
+### Known limitation
+
+- `core/main.py` still holds 79 route handlers inside `create_app`. They share roughly 30 closure
+  variables (`app`, `hub`, `app.state.*`, config clients). Extracting them needs those
+  dependencies threaded explicitly through each router — a structural refactor with real
+  regression risk, not a mechanical move. Left as-is deliberately; the file is verified clean
+  (no duplicate handlers, no duplicate routes, 99 routes).
+
+---
+
 ## [1.6.1] — 2026-11-07
 
 Correctness and tooling: two real bugs, plus the i18n work that surfaced them.

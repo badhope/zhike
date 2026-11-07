@@ -38,7 +38,9 @@ def _is_fresh(row: dict | None) -> bool:
 
 def resolve_session(channel: str, visitor_id: str) -> str:
     row = store.get_channel_session(channel)
-    if _is_fresh(row):
+    # _is_fresh 内部已保证 row 非空（not row → False），但 mypy 无法跨函数收窄，
+    # 这里显式判一次：既让类型检查通过，也避免将来 _is_fresh 语义变化时踩空。
+    if row is not None and _is_fresh(row):
         # 命中复用：必须刷新最后活动时间，否则映射永远停留在建会话那一刻
         store.touch_channel_session(channel, row["session_id"])
         return row["session_id"]
