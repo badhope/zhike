@@ -1,6 +1,6 @@
 [project]
 name = "zhike"
-version = "1.6.0"
+version = "1.6.1"
 description = "Self-hosted personal assistant agent harness: QQ + Web, ReAct loop, RAG, reminders, tiered action permissions, audit."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -74,6 +74,12 @@ filterwarnings = [
   "ignore::PendingDeprecationWarning",
 ]
 
+# 类型检查分两层（ROADMAP P1）：
+#   - 新模块（core/api/reminders.py、core/api/setup.py 等）由 CI 强制检查，
+#     因为它们从第一天就是类型干净的；
+#   - 存量模块（store/main/tools/pipeline）设为 advisory，只报告不阻断。
+# 一次性把 126 个存量错误全部修掉会触及 16 个文件，风险远大于收益；
+# 正确做法是新代码不欠新债，存量随重构逐步收敛。
 [tool.mypy]
 python_version = "3.12"
 ignore_missing_imports = true

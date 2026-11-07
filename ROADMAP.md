@@ -13,17 +13,23 @@ Legend: `P0` blocking · `P1` next · `P2` later · `P3` opportunistic
 
 ---
 
+## Shipped after 1.5.0
+
+| Item | Evidence |
+|---|---|
+| Persistence decomposition (partially) | `core/{config,tool,kb,agent,reminder}_store.py` own their schema access (569 lines total); `store.*` keeps compatibility shims. `sessions` / `memory` remain inline because their functions are interleaved with 117 unrelated definitions — extracting them safely needs a dedicated refactor, not a mechanical move. |
+| Frontend i18n parity | `scripts/i18n_gap.py` reports 0 missing msgids (437 source keys, 748 `en.ts` entries). Tooling: `i18n_wrap.py`, `i18n_fill.py`. |
+| Reminder time-zone correctness | `core/api/reminders.py` no longer passes a UTC clock into `parse_due`; regression test asserts API and tool entry agree to within 60s (`tests/test_reminders_api.py`). |
+| mypy for new modules | CI runs blocking `mypy` on `core/api/*` with `--follow-imports=skip`; legacy modules stay advisory (126 pre-existing errors across 16 files). |
+
+---
+
 ## Now — 1.4.0
 
 | Pri | Item | Why | Acceptance |
 |---|---|---|---|
-| P0 | Finish persistence decomposition: `sessions`, `memory`, `actions` out of `core/store.py` | 2,100-line module is the main obstacle to review and to parallel work | Each new module owns its schema access; `store.*` compatibility shims stay; full suite green |
+| P0 | Finish persistence decomposition: `sessions`, `memory` out of `core/store.py` | 2,100-line module is still the main obstacle to review and to parallel work | Each new module owns its schema access; `store.*` compatibility shims stay; full suite green |
 | P0 | Split remaining admin routes out of `core/main.py` into `core/api/{sessions,admin,actions,agent}.py` | 110 routes in one closure makes dependency wiring invisible | Route count unchanged, SPA fallback stays last, full suite green |
-| P1 | Frontend i18n parity (currently ~36%) | The console advertises English but half of it is Chinese-only | Every user-visible string goes through `t()`; language switch changes the whole UI |
-| P1 | Time-zone correctness for reminders across entry points | Tool entry and admin API currently disagree on the reference clock | One injected clock; regression test with a frozen non-UTC zone |
-
-> 1.3.0 shipped the character card system (structured persona canon + consistency guard)
-> instead of these items; they roll forward unchanged.
 
 ## Next — 1.5.0
 

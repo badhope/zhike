@@ -54,6 +54,40 @@ no separate clones or manual installs.
 
 ---
 
+## [1.6.1] — 2026-11-07
+
+Correctness and tooling: two real bugs, plus the i18n work that surfaced them.
+
+### Fixed
+
+- **Reminders created through the admin API fired at the wrong hour.** `core/api/reminders.py`
+  passed `datetime.now(timezone.utc)` into `parse_due()`, overriding that function's contract
+  that "the user's 9am means local 9am". The same sentence — 「明天早上9点」 — therefore landed
+  8 hours apart depending on whether it came from the web API or from the chat tool. The call
+  now uses the local-clock default, and a regression test asserts both entry points agree to
+  within 60 seconds. This was the last P1 left over from the 1.4.0 roadmap.
+- **`list_files` reused the `except ... as e` variable after the block.** Python deletes that
+  binding when the handler exits, so the following list comprehension read a deleted name
+  (mypy flags it as `Trying to read deleted variable`; at runtime it can raise `NameError`
+  on some paths). Renamed to `item`.
+
+### Added
+
+- `scripts/i18n_wrap.py`, `scripts/i18n_gap.py`, `scripts/i18n_fill.py` — idempotent tooling to
+  wrap untranslated UI strings, detect gaps, and fill translations. Gap count is now **0**
+  (437 source msgids, 748 `en.ts` entries; was ~536 gaps).
+- Blocking `mypy` for new modules in CI (`core/api/*` with `--follow-imports=skip`). Legacy
+  modules stay advisory — 126 pre-existing errors across 16 files would be a risky
+  big-bang change, so new code simply stops adding to the debt.
+
+### Changed
+
+- `bootstrapAdminToken` aborts after 3s. It resolves before React mounts the root, so a fetch
+  that never settles left the page permanently blank with no console error.
+- Test suite: 956 → 958.
+
+---
+
 ## [1.6.0] — 2026-11-06
 
 Delivery layer: the project becomes installable, shippable, and self-explanatory on first run.

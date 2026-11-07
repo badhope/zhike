@@ -1,7 +1,6 @@
 """提醒 API 路由：管理提醒的查询、创建、取消和手动调度。"""
 from __future__ import annotations
 
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -43,7 +42,12 @@ def reminders_create(body: ReminderIn):
     if not repeat_rule:
         repeat_rule, when_raw = tools_mod._parse_repeat(when_raw)
     if not due_iso:
-        due = tools_mod._parse_due(when_raw, datetime.now(timezone.utc))
+        # 不要传 UTC 时钟！parse_due 的约定是「用户说的 8 点 = 本地 8 点」，
+        # 它内部默认就是 datetime.now().astimezone()。这里显式传 timezone.utc
+        # 会覆盖那个正确默认值，导致同一条「明天早上 9 点」——
+        # 从网页 API 建是 UTC 9 点（= 北京 17 点），从聊天工具建是北京 9 点，
+        # 两个入口差 8 小时。ROADMAP 里挂了几版的 P1 缺陷就是这条。
+        due = tools_mod._parse_due(when_raw)
         if due is None:
             raise HTTPException(400, f"看不懂时间表达：{body.when or '(空)'}")
         due_iso = due.isoformat()

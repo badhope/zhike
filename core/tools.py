@@ -386,15 +386,18 @@ async def tool_list_files(path: str, depth: str = "1", **_kw) -> dict:
 
     if not isinstance(data, dict):
         return miss_result("list_files", "执行器返回格式不对。", path=path)
-    entries = [e for e in (data.get("entries") or data.get("items") or [])
-               if isinstance(e, dict)]
+    # 变量名不要用 e：上面 except ... as e 的 e 在块结束时会被 Python 删除，
+    # 这里复用 e 会读到已删除的变量（mypy 报 "Trying to read deleted variable"，
+    # 运行时在特定路径上也会 NameError）。
+    entries = [item for item in (data.get("entries") or data.get("items") or [])
+               if isinstance(item, dict)]
     if not entries:
         return miss_result("list_files", "这个目录是空的或不存在。", path=path)
     lines = []
-    for e in entries[:60]:
-        name = e.get("name") or e.get("path") or "?"
-        kind = "目录" if e.get("is_dir") or e.get("type") == "dir" else "文件"
-        size = e.get("size")
+    for item in entries[:60]:
+        name = item.get("name") or item.get("path") or "?"
+        kind = "目录" if item.get("is_dir") or item.get("type") == "dir" else "文件"
+        size = item.get("size")
         lines.append(f"{kind} {name}" + (f" ({size}B)" if size else ""))
     return ok_result("list_files", "\n".join(lines), path=path, count=len(entries))
 
