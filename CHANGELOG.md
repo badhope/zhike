@@ -54,6 +54,44 @@ no separate clones or manual installs.
 
 ---
 
+## [1.7.1] — 2026-11-08
+
+QQ account identity: it now follows whoever actually logged in, with no default account baked in.
+
+### Fixed
+
+- **A hardcoded QQ number acted as the default identity.** `scripts/launcher.py` fell back to a
+  specific account when its config file was missing, so after switching accounts the launcher
+  would quick-login the *old* number while the user was scanning a new one. The default is now an
+  empty string, and starting the protocol side with an empty number is refused with a clear
+  message instead of silently reusing cached credentials.
+- **Account details had no single source of truth.** `uin` / `nick` were stitched together in the
+  frontend and could survive an account switch. New `core/qq_identity.py` stores the identity that
+  NapCat actually reported at login; `/api/channel/qq/login-status` now always returns an
+  `account` object (present even when NapCat is unreachable) and the UI renders only that.
+- **Switching accounts left stale data.** Identity sync now *replaces* rather than merges: a
+  different `uin` overwrites `nick` and avatar outright. There is no path where account A's name
+  survives into account B's session.
+- **`logged_in_at` was rewritten on every poll.** The change check compared the raw
+  `avatar_url` argument (often empty) against the derived URL, so a new timestamp was written
+  every 3 seconds and the UI could never show how long the session had been up.
+
+### Added
+
+- `tests/test_qq_identity.py` — 7 tests covering: empty identity before first login, identity
+  following the real login, switch-replaces-not-merges, stable timestamps on repeated polls,
+  empty input not clearing a known identity, the `account` shape from the API, and opt-in
+  behaviour of the authorization follow.
+- `QQ_IDENTITY_FOLLOW_LOGIN` (default off). When enabled, a successful login appends the account
+  to `AUTHORIZED_QQ`. Off by default on purpose: scanning a QR code should not silently grant
+  privileged tool access.
+
+### Changed
+
+- Test suite: 958 → 965.
+
+---
+
 ## [1.7.0] — 2026-11-07
 
 Type safety done end to end, and the last persistence split.

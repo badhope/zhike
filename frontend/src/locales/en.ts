@@ -789,6 +789,12 @@ const en: Record<string, string> = {
   '连接模型': 'Connect a model',
   '预览': 'Preview',
 
+
+  // ---- i18n 补齐（向导 / 扫码页） ----
+  ' · 扫码后将以新账号为准': ' · the scanned account will replace it',
+  '上次登录：': 'Last signed in: ',
+  '账号资料来自这次实际登录的结果；换号后这里会自动更新，不需要手动改配置。': 'Account details come from the login that actually happened; switching accounts updates this automatically.',
+
 }
 
 export default en

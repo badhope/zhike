@@ -103,6 +103,12 @@ TRANSLATIONS: dict[str, str] = {
         "Mobile QQ → “+” (top right) → Scan. Confirm on your phone and this page switches to signed-in automatically.",
     "刷新状态": "Refresh status",
     "已登录": "Signed in",
+    "上次登录：": "Last signed in: ",
+    " · 扫码后将以新账号为准": " · the scanned account will replace it",
+    "账号资料来自这次实际登录的结果；换号后这里会自动更新，不需要手动改配置。":
+        "Account details come from the login that actually happened; switching accounts updates this automatically.",
+    "请先填写要登录的 QQ 号（页面「QQ 号」输入框）——账号跟随实际扫码/登录结果，不设默认值":
+        "Enter the QQ number to sign in with first — the account follows the actual login, there is no default.",
     "刷新二维码": "Refresh QR code",
     "协议端": "Protocol side",
     "可选：不接 QQ，网页端照样可用": "Optional: skip QQ and the web console still works",

@@ -47,10 +47,21 @@ def log(name: str, line: str) -> None:
 
 
 def load_cfg() -> dict:
+    """读启动器配置。
+
+    注意 qq 默认值是**空串**，不是某个具体账号。
+    之前这里写死过一个 QQ 号，导致换账号时如果用户没手动改，
+    启动器会拿旧号去快速登录——扫码扫的是新号、启动用的却是旧号，
+    表现是"怎么登都是之前那个账号"。账号必须由实际登录结果决定，
+    配置里只在用户显式填写后才有值。
+    """
     try:
-        return json.loads(CFG_FILE.read_text(encoding="utf-8"))
+        cfg = json.loads(CFG_FILE.read_text(encoding="utf-8"))
     except Exception:
-        return {"qq": "3876137118", "proto": "desktop"}
+        cfg = {}
+    cfg.setdefault("qq", "")
+    cfg.setdefault("proto", "desktop")
+    return cfg
 
 
 def save_cfg(cfg: dict) -> None:
@@ -230,9 +241,14 @@ def start_proto(kind: str, cfg: dict) -> str:
         if not exe.exists():
             return "X 未安装 NapCatQQ Desktop——用下方「下载 Desktop」按钮"
         subprocess.Popen([str(exe)])
-        return "OK NapCatQQ Desktop 已启动：在里面装组件 → 新建 Bot（QQ号 %s）→ 启动 → 扫码。" % cfg["qq"]
+        return "OK NapCatQQ Desktop 已启动：在里面装组件 → 新建 Bot → 启动 → 扫码。"
     if kind == "shell":
-        qq = cfg["qq"]
+        qq = str(cfg.get("qq") or "").strip()
+        if not qq:
+            # 不猜、也不沿用上次的号：空号去快速登录等于让 NapCat 复用旧凭据，
+            # 换账号时会"怎么登都是上一个账号"。账号资料必须跟随实际登录结果。
+            return ("X 请先填写要登录的 QQ 号（页面「QQ 号」输入框）——"
+                    "账号跟随实际扫码/登录结果，不设默认值")
         if not (LOCAL / "napcat" / "NapCatWinBootMain.exe").exists():
             return "X 本机 Shell 未安装——先用「下载/更新 Shell」按钮"
         threading.Thread(target=_run_shell_start, args=(qq,), daemon=True).start()

@@ -33,12 +33,21 @@ const REFRESH_S = 100 // 距过期约 100 秒时主动换新（NapCat 约 120 �
 const POLL_MS = 3000
 
 type QrResp = { configured?: boolean; qrcode_url?: string; error?: string }
+type Account = {
+  uin: string
+  nick: string
+  avatar_url: string
+  logged_in_at: string
+  is_current: boolean
+}
 type LoginStatus = {
   configured?: boolean
   reachable?: boolean
   is_login?: boolean
   is_offline?: boolean
   login_phase?: number | null
+  /** 服务端认定的当前账号（实时登录结果优先，其次是上次记录） */
+  account?: Account
   error?: string
 }
 
@@ -162,16 +171,53 @@ export default function QQScanPage() {
       <div className="bg-panel border border-line-2 rounded-2xl p-5 sm:p-8 flex flex-col items-center gap-5 min-w-0">
         {loggedIn ? (
           <div className="flex flex-col items-center gap-3 py-10">
-            <div className="w-16 h-16 rounded-full bg-brand/10 flex items-center justify-center">
-              <CheckCircle2 size={34} className="text-brand" />
-            </div>
-            <p className="text-base font-semibold">{t('已登录')}</p>
+            {status?.account?.avatar_url ? (
+              <img
+                src={status.account.avatar_url}
+                alt=""
+                width={72}
+                height={72}
+                style={{ borderRadius: '50%' }}
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-brand/10 flex items-center justify-center">
+                <CheckCircle2 size={34} className="text-brand" />
+              </div>
+            )}
+            <p className="text-base font-semibold">
+              {status?.account?.nick || status?.account?.uin
+                ? `${status.account.nick || ''}${status.account.uin ? ` (${status.account.uin})` : ''}`
+                : t('已登录')}
+            </p>
             <p className="text-sm text-muted text-center max-w-[36ch]">
               {t('QQ 渠道已就绪。回到控制台即可在群里 @ 它或私聊使用。')}
+            </p>
+            <p className="text-xs text-muted text-center max-w-[40ch]">
+              {t('账号资料来自这次实际登录的结果；换号后这里会自动更新，不需要手动改配置。')}
             </p>
           </div>
         ) : (
           <>
+            {/* 未登录但有历史账号时，明确标成"上次登录"，不能让人误以为还是当前账号 */}
+            {status?.account?.uin && (
+              <div className="flex items-center gap-2 text-xs text-muted">
+                {status.account.avatar_url && (
+                  <img
+                    src={status.account.avatar_url}
+                    alt=""
+                    width={20}
+                    height={20}
+                    style={{ borderRadius: '50%' }}
+                  />
+                )}
+                <span>
+                  {t('上次登录：')}
+                  {status.account.nick || status.account.uin}
+                  {status.account.uin ? ` (${status.account.uin})` : ''}
+                  {t(' · 扫码后将以新账号为准')}
+                </span>
+              </div>
+            )}
             <div className="relative w-full max-w-[300px] flex justify-center">
               <div className="bg-white p-3 sm:p-4 rounded-xl border border-line-2 shadow-sm">
                 {qr?.qrcode_url ? (

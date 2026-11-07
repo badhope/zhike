@@ -127,26 +127,58 @@ async def qq_login_qr(refresh: str = "", _admin: None = Depends(require_admin)):
 
 @router.get("/login-status")
 async def qq_login_status(_admin: None = Depends(require_admin)):
-    """NapCat 登录阶段：isLogin / isOffline / coreReady / loginPhase 原样透传。"""
+    """NapCat 登录阶段：isLogin / isOffline / coreReady / loginPhase 原样透传。
+
+    登录成功时把**实际登录的账号**同步进 `core.qq_identity`，作为全系统的
+    账号唯一事实源。账号资料（uin/nick/头像）永远来自这里返回的实时值，
+    不来自配置文件里的默认值——换号后所有展示自动跟着变。
+
+    返回结构恒定：无论 NapCat 是否配置、是否可达，都带 `account` 字段
+    （未配置时是历史记录或空对象）。前端只认这一个来源，不做缺省拼装。
+    """
+    from core import qq_identity
+
+    def _account_payload(is_login: bool, live_uin: str = "") -> dict:
+        ident = qq_identity.current()
+        return {
+            "uin": ident.uin,
+            "nick": ident.nick,
+            "avatar_url": ident.avatar_url,
+            "logged_in_at": ident.logged_in_at,
+            "is_current": bool(is_login and live_uin and ident.uin == live_uin),
+        }
+
     if not napcat_configured():
-        return {"configured": False}
+        return {"configured": False, "is_login": False, "account": _account_payload(False)}
     try:
         data = await _napcat_post("/api/QQLogin/CheckLoginStatus")
     except HTTPException:
         raise
     except Exception as e:
         logger.warning("napcat status proxy failed: %s", type(e).__name__)
-        return {"configured": True, "reachable": False,
+        return {"configured": True, "reachable": False, "is_login": False,
+                "account": _account_payload(False),
                 "error": f"连不上 NapCat WebUI：{type(e).__name__}: {str(e)[:160]}"}
+
+    uin = str(data.get("uin") or data.get("uin64") or "")
+    nick = str(data.get("nick") or "")
+    is_login = bool(data.get("isLogin"))
+
+    # 已登录才同步身份；未登录时保留上次记录（带时间戳，界面标为历史）
+    if is_login and (uin or nick):
+        qq_identity.sync_from_login(uin, nick)
+
     return {
         "configured": True,
         "reachable": True,
-        "is_login": bool(data.get("isLogin")),
+        "is_login": is_login,
         "is_offline": bool(data.get("isOffline")),
         "core_ready": bool(data.get("coreReady")),
         "login_phase": data.get("loginPhase"),
-        "uin": str(data.get("uin") or data.get("uin64") or ""),
-        "nick": str(data.get("nick") or ""),
+        "uin": uin,
+        "nick": nick,
+        # 当前账号（实时优先，其次上次记录）：前端只认这个，不自己拼默认值
+        "account": _account_payload(is_login, uin),
         # 原样透传一份：NapCat 版本间字段有差异，前端对未知字段保持宽容
         "raw": data,
     }

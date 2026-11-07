@@ -400,6 +400,14 @@ interface QQLoginStatus {
   login_phase?: number | null
   uin?: string
   nick?: string
+  /** 当前账号：来自服务端实时登录结果，不是本地默认值 */
+  account?: {
+    uin: string
+    nick: string
+    avatar_url: string
+    logged_in_at: string
+    is_current: boolean
+  }
   error?: string
 }
 
@@ -515,9 +523,24 @@ function QQScanLogin({ onLoggedIn }: { onLoggedIn?: () => void }) {
 
             {loggedIn && (
               <div style={{ textAlign: 'center', padding: '10px 0' }}>
-                <CheckCircle2 size={40} style={{ color: 'var(--ok, #16a34a)' }} />
+                {status?.account?.avatar_url ? (
+                  <img
+                    src={status.account.avatar_url}
+                    alt=""
+                    width={56}
+                    height={56}
+                    style={{ borderRadius: '50%', display: 'inline-block' }}
+                  />
+                ) : (
+                  <CheckCircle2 size={40} style={{ color: 'var(--ok, #16a34a)' }} />
+                )}
                 <p className="dlg-msg" style={{ marginTop: 8 }}>
-                  {t('已登录')}{status?.nick || status?.uin ? `：${status?.nick || ''}${status?.uin ? ` (${status?.uin})` : ''}` : ''}
+                  {/* 账号资料一律取服务端返回的 account（实时登录结果），
+                      不在这里拼默认值——换号后这里会自动跟着变 */}
+                  {t('已登录')}
+                  {status?.account?.nick || status?.account?.uin
+                    ? `：${status?.account?.nick || ''}${status?.account?.uin ? ` (${status?.account?.uin})` : ''}`
+                    : ''}
                 </p>
                 <p className="bp-hint">{t('网关会自动连上，无需重启；回到「渠道连接」看心跳。')}</p>
               </div>
