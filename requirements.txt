@@ -23,4 +23,5 @@ tenacity~=9.0
 trafilatura~=2.0
 # 免 Key 元搜索后端（ddgs：DuckDuckGo/Bing/Google 聚合，无 API Key）
 ddgs~=9.0
-
+# 二维码本地生成（通用工具 qr_code）：绝不用在线服务，避免内容外泄
+qrcode[pil]~=8.2

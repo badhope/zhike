@@ -33,7 +33,7 @@ import time
 import urllib.parse
 from datetime import datetime, timezone
 
-from core.tool_result import miss_result, need_ctx, ok_result
+from core.tool_result import miss_result, need_ctx, off_result, ok_result
 
 # ---------------------------------------------------------------- 单位换算
 
@@ -455,7 +455,16 @@ async def tool_exchange_rate(base: str = "USD", target: str = "CNY", amount: str
 
 
 def tool_qr_code(text: str = "", **_kw) -> dict:
-    """把文本/链接生成二维码图片（返回 data URL，可直接发出去）。"""
+    """把文本/链接生成二维码图片（返回 data URL，可直接发出去）。
+
+    ## 隐私要求：必须本地生成
+
+    这里的输入可能是密码、地址、私密链接。**绝不能用在线二维码服务兜底**——
+    那等于把明文内容发到第三方服务器。之前的实现在缺 qrcode 库时退回到
+    api.qrserver.com，等于每次调用都在外泄数据；已移除这条路径。
+
+    库缺失时诚实报错并给出安装命令，而不是"看起来能用的"外部链接。
+    """
     body = (text or "").strip()
     if not body:
         return need_ctx("qr_code", "要编码的文本或链接")
@@ -464,11 +473,11 @@ def tool_qr_code(text: str = "", **_kw) -> dict:
 
         import qrcode  # type: ignore[import-not-found]
     except ImportError:
-        # 没有 qrcode 库时退回在线服务（不假装本地生成成功）
-        url = "https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=" + \
-              urllib.parse.quote(body)
-        return ok_result("qr_code", f"已生成二维码图片链接：{url}", image_url=url,
-                         source="external")
+        return off_result(
+            "qr_code",
+            "本地二维码库未安装，为避免把内容发到第三方服务，本次不生成。"
+            "安装后可用：pip install 'qrcode[pil]'")
+
     img = qrcode.make(body)
     buf = io.BytesIO()
     img.save(buf, format="PNG")

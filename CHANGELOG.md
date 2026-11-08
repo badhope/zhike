@@ -54,6 +54,26 @@ no separate clones or manual installs.
 
 ---
 
+## [1.8.1] — 2026-11-09
+
+### Fixed
+
+- **`qr_code` leaked its input to a third party.** When the local `qrcode` package was missing,
+  the tool fell back to `api.qrserver.com`, sending the user's text — passwords, addresses,
+  private links — as a query parameter to an external server. Every call in a default install
+  took that path, because the package was not a dependency at all. QR codes are now generated
+  locally only; if the library is absent the tool refuses and tells you how to install it,
+  rather than quietly exfiltrating data. `qrcode[pil]` added to both dependency manifests.
+- Two tests lock this down: one asserts no external domain appears anywhere in the result
+  (verified by reintroducing the old code and watching it fail), the other asserts a real
+  `data:image/png;base64,` payload comes back.
+
+### Changed
+
+- Test suite: 979 → 981.
+
+---
+
 ## [1.8.0] — 2026-11-08
 
 Any-account toolkit: tools and knowledge that do not depend on whose QQ account is logged in.

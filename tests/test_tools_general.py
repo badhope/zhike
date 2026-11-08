@@ -185,3 +185,42 @@ def test_rule_routing_leaves_chitchat_alone(db):
 
     for q in ["你好呀", "今天心情不错", "陪我聊会儿"]:
         assert tools.detect_tool(q)[0] is None, f"{q!r} 不该被路由"
+
+
+# ---------------------------------------------------------------- 隐私约束
+
+def test_qr_code_never_sends_content_to_third_party():
+    """二维码必须在本地生成。
+
+    这是一个真实的隐私缺陷：原实现在缺 qrcode 库时退回 api.qrserver.com，
+    把用户输入（可能是密码、地址、私密链接）明文发到第三方服务器。
+    测试锁死：结果里不能出现任何外部域名。
+    """
+    from core.tools_general import tool_qr_code
+
+    secret = "我的密码是 hunter2"
+    r = tool_qr_code(text=secret)
+
+    def _walk(obj):
+        if isinstance(obj, str):
+            yield obj
+        elif isinstance(obj, dict):
+            for v in obj.values():
+                yield from _walk(v)
+        elif isinstance(obj, (list, tuple)):
+            for v in obj:
+                yield from _walk(v)
+
+    joined = " ".join(_walk(r))
+    for domain in ("qrserver", "api.qr", "googleapis", "chart.googleapis"):
+        assert domain not in joined, f"二维码内容被发到了第三方（{domain}）"
+
+
+def test_qr_code_returns_local_data_url():
+    """正常路径必须返回可直接发送的 data URL，而不是需要外部下载的链接。"""
+    from core.tools_general import tool_qr_code
+
+    r = tool_qr_code(text="https://example.com")
+    assert r["found"] is True
+    assert r.get("source") == "local"
+    assert r["image_data_url"].startswith("data:image/png;base64,")
