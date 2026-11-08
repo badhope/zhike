@@ -54,6 +54,53 @@ no separate clones or manual installs.
 
 ---
 
+## [1.8.0] — 2026-11-08
+
+Any-account toolkit: tools and knowledge that do not depend on whose QQ account is logged in.
+
+### Added
+
+- **13 general-purpose tools** (`core/tools_general.py`), taking the registry from 42 to 55:
+  - Unit conversion (length / weight / volume / temperature), timestamp ↔ date,
+    Base64, hashing (md5/sha1/sha256/sha512), JSON format/minify/validate,
+    regex testing, random draw, password generation, colour format conversion.
+  - Weather, translation and currency conversion — the three that need the network,
+    each with an honest failure message instead of a silent empty answer.
+  - Currency conversion tries three providers in order, because single free FX sources
+    are unreliable (frankfurter.app returned a 301 that httpx does not follow by default).
+- **Rule routing for the offline case.** Without a model key, 「5km 换算成英里」、
+  「时间戳 1730000000 是几号」、`base64 编码 …`、`sha256 …`、`json 格式化 …` still reach
+  the right tool. General routing runs *before* QQ platform actions — otherwise a question
+  containing 戳 was captured by `qq_poke`.
+- **7 general knowledge entries** (`GEN001`–`GEN007`): time/date conventions, unit conversion
+  facts, file & encoding basics, privacy red lines, how to say "I don't know", common office
+  workflows, and debugging order. Knowledge base: 14 → 21 entries.
+- `core/tool_result.py` — result-contract helpers extracted so `tools` and `tools_general`
+  no longer import each other in a cycle.
+
+### Fixed
+
+- **`tool_color("#0E5C55")` returned `#000537`.** The branch test looked at how many digits
+  it could extract, and hex letters are not digits — `0E5C55` yielded `['0','5','55']`,
+  was misread as RGB and re-emitted as a different colour. Now the input *form*
+  (comma/parentheses vs bare hex) decides the branch.
+- **`empty_result` contract regression.** While extracting helpers, `status="empty"` was
+  briefly replaced by `empty=True`; three tests caught it immediately because the pipeline
+  branches on `status` and would have turned "you have no reminders" into an escalation ticket.
+
+### Changed
+
+- `AUTHORIZED_QQ` cleared in this deployment: no account holds privileged tool access by
+  default. Set it explicitly after scanning the account you actually want to own the bot.
+
+### Known limitation
+
+- Emote library: 300 of 1289 files carry visual tags. `index.json` is a 300-entry ring
+  (oldest evicted) by design, so tagging stops there; the remaining files are historical
+  and not currently served.
+
+---
+
 ## [1.7.1] — 2026-11-08
 
 QQ account identity: it now follows whoever actually logged in, with no default account baked in.

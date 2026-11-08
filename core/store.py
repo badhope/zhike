@@ -328,11 +328,22 @@ _EXTRA_TOOLS: list[tuple[str, str, str, dict]] = [
 
 
 def _extra_tool_seeds() -> list[dict]:
-    return [
+    seeds = [
         {"id": tid, "name": name, "desc": desc,
          "args_json": json.dumps(args, ensure_ascii=False), "builtin": 1}
         for tid, name, desc, args in _EXTRA_TOOLS
     ]
+    # 通用工具（core/tools_general.py）也走同一条播种/补齐路径。
+    # 否则它们在代码里注册了、却因为没有写进 tools 表而永远不会被 active_tools 返回
+    # ——「工具存在但模型永远看不到」是最难发现的一类配置缺陷。
+    from core.tools_general import TOOL_META_EXTRA
+
+    seeds += [
+        {"id": tid, "name": meta["name"], "desc": meta["desc"],
+         "args_json": json.dumps(meta.get("args") or {}, ensure_ascii=False), "builtin": 1}
+        for tid, meta in TOOL_META_EXTRA.items()
+    ]
+    return seeds
 
 
 def _backfill_builtin_tools(conn: sqlite3.Connection) -> None:
