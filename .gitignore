@@ -61,3 +61,7 @@ build/
 
 # 打包/冒烟测试的临时目录
 .tmp/
+
+# 演示视频原片只在本机保留，不入库（README 用 demo.gif）
+docs/media/*.webm
+docs/media/*.mp4
